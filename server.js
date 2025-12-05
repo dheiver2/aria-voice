@@ -181,18 +181,53 @@ async function chat(message, sessionId) {
 }
 
 // ============================================
+// LIMPEZA DE MARKDOWN
+// ============================================
+function cleanMarkdown(text) {
+    return text
+        // Remove blocos de código
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`([^`]+)`/g, '$1')
+        // Remove negrito e itálico
+        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/___(.+?)___/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/_(.+?)_/g, '$1')
+        // Remove headers
+        .replace(/^#{1,6}\s+/gm, '')
+        // Remove links
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // Remove imagens
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+        // Remove listas
+        .replace(/^[\s]*[-*+]\s+/gm, '')
+        .replace(/^[\s]*\d+\.\s+/gm, '')
+        // Remove blockquotes
+        .replace(/^>\s+/gm, '')
+        // Remove linhas horizontais
+        .replace(/^[-*_]{3,}$/gm, '')
+        // Limpa espaços extras
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// ============================================
 // TEXT-TO-SPEECH
 // ============================================
 function generateAudio(text, voice, speed) {
     return new Promise((resolve, reject) => {
         const voiceId = VOICES[voice] || VOICES.francisca;
-        // Limpar texto para uso em linha de comando
-        const cleanText = text
+        
+        // Limpar markdown e preparar texto para TTS
+        const cleanText = cleanMarkdown(text)
             .replace(/["'`]/g, '')
             .replace(/[\n\r]/g, ' ')
             .replace(/\s+/g, ' ')
             .trim()
-            .substring(0, 400);
+            .substring(0, 500);
         
         const hash = crypto.createHash('md5').update(cleanText + voice + speed).digest('hex').substring(0, 12);
         const filename = `${hash}.mp3`;
