@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ARIA Voice</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Preload de recursos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+    <!-- Interface 100% por voz - sem texto -->
+    <div class="container">
+        <!-- Visualizador de ondas sonoras -->
+        <div class="sound-wave" id="soundWave">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+        </div>
+        
+        <!-- Orbe central animado -->
+        <div class="orb-container" id="orbContainer">
+            <div class="orb" id="orb">
+                <div class="orb-core"></div>
+                <div class="orb-glow"></div>
+                <div class="orb-ring ring-1"></div>
+                <div class="orb-ring ring-2"></div>
+                <div class="orb-ring ring-3"></div>
+                <div class="orb-particles"></div>
+            </div>
+            <!-- Indicador de volume -->
+            <div class="volume-indicator" id="volumeIndicator"></div>
+        </div>
+        
+        <!-- Indicador de estado visual (sem texto) -->
+        <div class="status-indicator" id="status">
+            <div class="pulse-ring"></div>
+        </div>
+        
+        <!-- Ícone de microfone sutil -->
+        <div class="mic-icon" id="micIcon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Audio player oculto -->
+    <audio id="audioPlayer" preload="auto" style="display: none;"></audio>
+    
+    <!-- Sons de feedback -->
+    <audio id="startSound" preload="auto" src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2Si3dwXVtthZOdmpOIdGRWT12CmqsA"></audio>
+    <audio id="stopSound" preload="auto" src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACqmoN1Y1lgdIeXoJiMfm5eUU1YcImcoA=="></audio>
+    
+    <script src="app.js"></script>
+</body>
+</html>

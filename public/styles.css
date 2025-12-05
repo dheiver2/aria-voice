@@ -1,0 +1,597 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at center, #0a0f1a 0%, #000000 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    position: relative;
+}
+
+/* ========================
+   ORB PRINCIPAL
+   ======================== */
+
+.orb-container {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.orb-container:hover {
+    transform: scale(1.05);
+}
+
+.orb-container:active {
+    transform: scale(0.95);
+}
+
+.orb {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Núcleo do orbe */
+.orb-core {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle at 30% 30%, 
+        #00f5ff 0%, 
+        #0080ff 40%, 
+        #0040aa 70%, 
+        #001a44 100%);
+    border-radius: 50%;
+    box-shadow: 
+        0 0 60px rgba(0, 245, 255, 0.6),
+        0 0 120px rgba(0, 128, 255, 0.4),
+        inset 0 0 40px rgba(255, 255, 255, 0.2);
+    animation: corePulse 3s ease-in-out infinite;
+}
+
+@keyframes corePulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 
+            0 0 60px rgba(0, 245, 255, 0.6),
+            0 0 120px rgba(0, 128, 255, 0.4),
+            inset 0 0 40px rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 
+            0 0 80px rgba(0, 245, 255, 0.8),
+            0 0 150px rgba(0, 128, 255, 0.5),
+            inset 0 0 50px rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* Anéis orbitais */
+.orb-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: rgba(0, 245, 255, 0.6);
+    border-right-color: rgba(0, 245, 255, 0.3);
+}
+
+.ring-1 {
+    width: 160px;
+    height: 160px;
+    animation: orbit 8s linear infinite;
+}
+
+.ring-2 {
+    width: 200px;
+    height: 200px;
+    animation: orbit 12s linear infinite reverse;
+    border-top-color: rgba(0, 128, 255, 0.5);
+    border-right-color: rgba(0, 128, 255, 0.2);
+}
+
+.ring-3 {
+    width: 250px;
+    height: 250px;
+    animation: orbit 15s linear infinite;
+    border-top-color: rgba(0, 80, 200, 0.4);
+    border-right-color: rgba(0, 80, 200, 0.1);
+}
+
+@keyframes orbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Partículas */
+.orb-particles {
+    position: absolute;
+    width: 280px;
+    height: 280px;
+    animation: floatParticles 20s linear infinite;
+}
+
+.orb-particles::before,
+.orb-particles::after {
+    content: '';
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #00f5ff;
+    border-radius: 50%;
+    box-shadow: 
+        30px 50px 0 rgba(0, 245, 255, 0.8),
+        -40px -30px 0 rgba(0, 128, 255, 0.6),
+        60px -50px 0 rgba(0, 200, 255, 0.7),
+        -70px 40px 0 rgba(0, 150, 255, 0.5),
+        100px 20px 0 rgba(0, 100, 255, 0.4),
+        -100px -60px 0 rgba(0, 180, 255, 0.6);
+    animation: particleGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes floatParticles {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(-360deg); }
+}
+
+@keyframes particleGlow {
+    from { opacity: 0.5; }
+    to { opacity: 1; }
+}
+
+/* ========================
+   INDICADOR DE STATUS
+   ======================== */
+
+.status-indicator {
+    position: absolute;
+    bottom: 60px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.pulse-ring {
+    width: 12px;
+    height: 12px;
+    background: rgba(0, 245, 255, 0.3);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+/* ========================
+   ESTADOS VISUAIS
+   ======================== */
+
+/* Estado: Ouvindo */
+.orb-container.listening .orb-core {
+    animation: listeningPulse 0.8s ease-in-out infinite;
+    background: radial-gradient(circle at 30% 30%, 
+        #00ff88 0%, 
+        #00cc66 40%, 
+        #008844 70%, 
+        #004422 100%);
+    box-shadow: 
+        0 0 80px rgba(0, 255, 136, 0.8),
+        0 0 150px rgba(0, 204, 102, 0.5),
+        inset 0 0 50px rgba(255, 255, 255, 0.3);
+}
+
+.orb-container.listening .ring-1,
+.orb-container.listening .ring-2,
+.orb-container.listening .ring-3 {
+    border-top-color: rgba(0, 255, 136, 0.6);
+    border-right-color: rgba(0, 255, 136, 0.3);
+    animation-duration: 2s;
+}
+
+.orb-container.listening .orb-particles::before,
+.orb-container.listening .orb-particles::after {
+    background: #00ff88;
+    box-shadow: 
+        30px 50px 0 rgba(0, 255, 136, 0.8),
+        -40px -30px 0 rgba(0, 204, 102, 0.6),
+        60px -50px 0 rgba(0, 230, 120, 0.7),
+        -70px 40px 0 rgba(0, 180, 100, 0.5),
+        100px 20px 0 rgba(0, 150, 80, 0.4),
+        -100px -60px 0 rgba(0, 200, 110, 0.6);
+}
+
+.listening .pulse-ring {
+    background: rgba(0, 255, 136, 0.6);
+    animation: statusPulse 1s ease-in-out infinite;
+}
+
+@keyframes listeningPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+@keyframes statusPulse {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% { 
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+}
+
+/* Estado: Processando */
+.orb-container.thinking .orb-core {
+    animation: thinkingPulse 0.5s ease-in-out infinite;
+    background: radial-gradient(circle at 30% 30%, 
+        #ffcc00 0%, 
+        #ff9900 40%, 
+        #cc6600 70%, 
+        #663300 100%);
+    box-shadow: 
+        0 0 80px rgba(255, 204, 0, 0.8),
+        0 0 150px rgba(255, 153, 0, 0.5),
+        inset 0 0 50px rgba(255, 255, 255, 0.3);
+}
+
+.orb-container.thinking .ring-1,
+.orb-container.thinking .ring-2,
+.orb-container.thinking .ring-3 {
+    border-top-color: rgba(255, 204, 0, 0.6);
+    border-right-color: rgba(255, 153, 0, 0.3);
+    animation-duration: 1s;
+}
+
+.thinking .pulse-ring {
+    background: rgba(255, 204, 0, 0.6);
+    animation: statusPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes thinkingPulse {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    25% { transform: scale(1.1) rotate(5deg); }
+    75% { transform: scale(1.1) rotate(-5deg); }
+}
+
+/* Estado: Falando */
+.orb-container.speaking .orb-core {
+    animation: speakingWave 0.3s ease-in-out infinite;
+    background: radial-gradient(circle at 30% 30%, 
+        #ff00ff 0%, 
+        #cc00cc 40%, 
+        #880088 70%, 
+        #440044 100%);
+    box-shadow: 
+        0 0 100px rgba(255, 0, 255, 0.9),
+        0 0 180px rgba(204, 0, 204, 0.6),
+        inset 0 0 60px rgba(255, 255, 255, 0.4);
+}
+
+.orb-container.speaking .ring-1,
+.orb-container.speaking .ring-2,
+.orb-container.speaking .ring-3 {
+    border-top-color: rgba(255, 0, 255, 0.7);
+    border-right-color: rgba(204, 0, 204, 0.4);
+    animation-duration: 0.8s;
+}
+
+.orb-container.speaking .orb-particles::before,
+.orb-container.speaking .orb-particles::after {
+    background: #ff00ff;
+    box-shadow: 
+        30px 50px 0 rgba(255, 0, 255, 0.8),
+        -40px -30px 0 rgba(204, 0, 204, 0.6),
+        60px -50px 0 rgba(230, 0, 230, 0.7),
+        -70px 40px 0 rgba(180, 0, 180, 0.5),
+        100px 20px 0 rgba(150, 0, 150, 0.4),
+        -100px -60px 0 rgba(200, 0, 200, 0.6);
+}
+
+.speaking .pulse-ring {
+    background: rgba(255, 0, 255, 0.7);
+    animation: speakingPulse 0.3s ease-in-out infinite;
+}
+
+@keyframes speakingWave {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+}
+
+@keyframes speakingPulse {
+    0%, 100% { 
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(255, 0, 255, 0.8);
+    }
+    50% { 
+        transform: scale(2);
+        box-shadow: 0 0 40px rgba(255, 0, 255, 0.4);
+    }
+}
+
+/* Estado: Erro */
+.orb-container.error .orb-core {
+    background: radial-gradient(circle at 30% 30%, 
+        #ff3333 0%, 
+        #cc0000 40%, 
+        #880000 70%, 
+        #440000 100%);
+    animation: errorShake 0.5s ease-in-out;
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-10px); }
+    80% { transform: translateX(10px); }
+}
+
+.error .pulse-ring {
+    background: rgba(255, 50, 50, 0.7);
+}
+
+/* ========================
+   VISUALIZADOR DE ONDAS
+   ======================== */
+
+.sound-wave {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.sound-wave.active {
+    opacity: 1;
+}
+
+.wave-bar {
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(to top, #00f5ff, #ff00ff);
+    border-radius: 4px;
+    animation: none;
+}
+
+.sound-wave.active .wave-bar {
+    animation: waveAnimation 0.5s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) { animation-delay: 0s; }
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.2s; }
+.wave-bar:nth-child(6) { animation-delay: 0.1s; }
+.wave-bar:nth-child(7) { animation-delay: 0s; }
+
+@keyframes waveAnimation {
+    0%, 100% { 
+        height: 20px;
+        opacity: 0.5;
+    }
+    50% { 
+        height: 60px;
+        opacity: 1;
+    }
+}
+
+/* ========================
+   INDICADOR DE VOLUME
+   ======================== */
+
+.volume-indicator {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    pointer-events: none;
+    transition: all 0.1s ease;
+}
+
+.volume-indicator.active {
+    border-color: rgba(0, 255, 136, 0.5);
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+}
+
+/* ========================
+   ÍCONE DE MICROFONE
+   ======================== */
+
+.mic-icon {
+    position: absolute;
+    bottom: 100px;
+    width: 32px;
+    height: 32px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    opacity: 0.5;
+}
+
+.mic-icon.active {
+    color: #00ff88;
+    opacity: 1;
+    animation: micPulse 1s ease-in-out infinite;
+}
+
+.mic-icon.speaking {
+    color: #ff00ff;
+    opacity: 1;
+}
+
+.mic-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+@keyframes micPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* ========================
+   GLOW ADICIONAL
+   ======================== */
+
+.orb-glow {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(0, 245, 255, 0.2) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: glowPulse 4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes glowPulse {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    50% { 
+        transform: scale(1.3);
+        opacity: 0.8;
+    }
+}
+
+/* ========================
+   FUNDO ANIMADO
+   ======================== */
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 80%, rgba(0, 100, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(0, 200, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(0, 150, 255, 0.02) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+    transition: background 0.5s ease;
+}
+
+/* Estrelas sutis no fundo */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+        radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 30% 70%, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(1px 1px at 50% 30%, rgba(255, 255, 255, 0.25), transparent),
+        radial-gradient(1px 1px at 70% 80%, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(1px 1px at 90% 40%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(1px 1px at 20% 50%, rgba(255, 255, 255, 0.15), transparent),
+        radial-gradient(1px 1px at 80% 60%, rgba(255, 255, 255, 0.2), transparent);
+    pointer-events: none;
+    z-index: -1;
+    animation: twinkle 8s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+    from { opacity: 0.5; }
+    to { opacity: 1; }
+}
+
+/* ========================
+   TRANSIÇÕES SUAVES
+   ======================== */
+
+.orb-container,
+.orb-core,
+.orb-ring,
+.pulse-ring,
+.status-indicator {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================
+   RESPONSIVO
+   ======================== */
+
+@media (max-width: 480px) {
+    .orb-container {
+        width: 220px;
+        height: 220px;
+    }
+    
+    .orb-core {
+        width: 90px;
+        height: 90px;
+    }
+    
+    .orb-glow {
+        width: 140px;
+        height: 140px;
+    }
+    
+    .ring-1 { width: 120px; height: 120px; }
+    .ring-2 { width: 160px; height: 160px; }
+    .ring-3 { width: 200px; height: 200px; }
+    .orb-particles { width: 220px; height: 220px; }
+    
+    .sound-wave {
+        gap: 4px;
+    }
+    
+    .wave-bar {
+        width: 3px;
+    }
+    
+    .mic-icon {
+        width: 28px;
+        height: 28px;
+        bottom: 80px;
+    }
+}
+
+/* ========================
+   SUPORTE PREFERÊNCIA MOVIMENTO REDUZIDO
+   ======================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

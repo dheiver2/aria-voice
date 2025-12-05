@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+*.log
+
+# Arquivos de áudio temporários
+public/audio/*.mp3
+
+# Sistema
+.DS_Store
+Thumbs.db
