@@ -31,8 +31,12 @@ const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
 // ============================================
 // MIDDLEWARE
 // ============================================
-app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
@@ -168,50 +172,41 @@ async function chat(message, sessionId, model) {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
-        version: '5.3.0',
+        version: '5.4.0',
         vercel: IS_VERCEL,
-        tts: ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser'
+        tts: elevenlabs ? 'elevenlabs-sdk' : 'browser'
     });
 });
 
-// TTS com ElevenLabs (voz ultra-natural)
+// TTS com ElevenLabs SDK (voz ultra-natural)
 async function generateSpeech(text) {
-    if (!ELEVENLABS_API_KEY) {
-        console.log('⚠️ ELEVENLABS_API_KEY não configurada');
+    if (!elevenlabs) {
+        console.log('⚠️ ElevenLabs não configurado');
         return null;
     }
     
     console.log('🎤 Gerando áudio ElevenLabs para:', text.substring(0, 50) + '...');
     
     try {
-        const response = await fetch(`${ELEVENLABS_TTS_URL}/${DEFAULT_VOICE_ID}`, {
-            method: 'POST',
-            headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                'Accept': 'audio/mpeg'
-            },
-            body: JSON.stringify({
+        // Usando o SDK oficial do ElevenLabs
+        const audio = await elevenlabs.textToSpeech.convert(
+            DEFAULT_VOICE_ID,
+            {
                 text: text,
-                model_id: 'eleven_multilingual_v2', // Melhor para português
-                voice_settings: {
-                    stability: 0.4,        // Menos estável = mais expressivo
-                    similarity_boost: 0.85, // Alta fidelidade à voz
-                    style: 0.7,            // Mais expressividade
-                    use_speaker_boost: true
-                }
-            })
-        });
+                modelId: 'eleven_multilingual_v2',
+                outputFormat: 'mp3_44100_128'
+            }
+        );
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ ElevenLabs Error:', response.status, errorText);
-            return null;
+        // Converter stream para buffer
+        const chunks = [];
+        for await (const chunk of audio) {
+            chunks.push(chunk);
         }
+        const audioBuffer = Buffer.concat(chunks);
         
-        const audioBuffer = await response.arrayBuffer();
         console.log('✅ Áudio gerado:', audioBuffer.byteLength, 'bytes');
-        return Buffer.from(audioBuffer).toString('base64');
+        return audioBuffer.toString('base64');
     } catch (error) {
         console.error('❌ ElevenLabs Error:', error.message);
         return null;

@@ -33,6 +33,11 @@ class ARIA {
     async init() {
         console.log('🚀 ARIA iniciando...');
         
+        // Detectar dispositivo móvel
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        console.log('📱 Mobile:', this.isMobile, 'iOS:', this.isIOS);
+        
         // Elementos DOM
         this.$ = {
             orb: document.getElementById('orb'),
@@ -45,6 +50,9 @@ class ARIA {
             clearBtn: document.getElementById('clearBtn')
         };
         
+        // Inicializar AudioContext para mobile
+        this.initAudioContext();
+        
         // Carregar configurações
         await this.loadSettings();
         
@@ -55,6 +63,34 @@ class ARIA {
         this.setupEventListeners();
         
         console.log('✅ ARIA pronta!');
+    }
+    
+    initAudioContext() {
+        // AudioContext precisa ser criado após interação do usuário no mobile
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            this.audioContext = new AudioContext();
+            console.log('🔊 AudioContext criado, state:', this.audioContext.state);
+        }
+    }
+    
+    async unlockAudio() {
+        // Desbloquear áudio no iOS/Android após toque
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+            console.log('🔓 AudioContext desbloqueado');
+        }
+        
+        // Tocar um som silencioso para desbloquear
+        const silentAudio = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+9DEAAAIAANIAAAAgAAA0gAAABBHx0jgQCAIAgDCgIAgCHf5QOD4Pg+D4nB8HxOD4nB8Hw+JwfB8HwfB/yg+D4Ph8TlAQBAEO/ygIAgOhQiouE4IBgGAYBgGAQCg+D7/B9/5QEO/5QEO/6EAEAv//tQxAkAAADSAAAAAAAAANIAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQJgAAA0gAAAAAA0gAAAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+        silentAudio.volume = 0.01;
+        try {
+            await silentAudio.play();
+            silentAudio.pause();
+            console.log('🔓 Áudio desbloqueado');
+        } catch (e) {
+            console.log('⚠️ Não foi possível desbloquear áudio:', e.message);
+        }
     }
     
     async loadSettings() {
@@ -159,8 +195,13 @@ class ARIA {
         this.sendMessage(text);
     }
     
-    startListening() {
+    async startListening() {
         if (!this.recognition || this.state.listening || this.state.processing || this.state.speaking) return;
+        
+        // Desbloquear áudio no mobile (precisa ser no evento de toque)
+        if (this.isMobile) {
+            await this.unlockAudio();
+        }
         
         try {
             this.recognition.start();
@@ -191,68 +232,134 @@ class ARIA {
         this.state.processing = true;
         this.$.orb.classList.add('thinking');
         
+        console.log('📤 Enviando:', message);
+        
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            
             const res = await fetch('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({
                     message,
                     sessionId: this.state.sessionId
-                })
+                }),
+                signal: controller.signal
             });
             
-            if (!res.ok) throw new Error('Erro na API');
+            clearTimeout(timeoutId);
+            
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error('❌ API Error:', res.status, errorText);
+                throw new Error(`API Error: ${res.status}`);
+            }
             
             const data = await res.json();
+            console.log('📥 Resposta:', data.response?.substring(0, 50), 'Audio:', data.audioBase64?.length || 0);
+            
+            // Salvar resposta para fallback
+            this.lastResponse = data.response;
             
             this.$.orb.classList.remove('thinking');
             
-            // Prioridade: OpenAI TTS (base64) > Browser TTS
-            if (data.audioBase64) {
+            // Prioridade: ElevenLabs TTS (base64) > Browser TTS
+            if (data.audioBase64 && data.audioBase64.length > 0) {
+                console.log('🎵 Tocando áudio ElevenLabs');
                 await this.playBase64Audio(data.audioBase64);
             } else {
+                console.log('🗣️ Usando TTS do navegador');
                 await this.speakWithBrowser(data.response);
             }
             
         } catch (error) {
-            console.error('Erro:', error);
+            console.error('❌ Erro:', error.message);
             this.$.orb.classList.remove('thinking');
             this.state.processing = false;
+            
+            // Tentar falar erro no mobile
+            if (this.isMobile && error.name === 'AbortError') {
+                this.speakWithBrowser('Desculpe, a conexão demorou muito. Tente novamente.');
+            }
         }
     }
     
     // ============================================
-    // ÁUDIO OPENAI TTS (voz natural)
+    // ÁUDIO ELEVENLABS TTS (voz ultra-natural)
     // ============================================
     
     async playBase64Audio(base64) {
-        return new Promise((resolve) => {
+        return new Promise(async (resolve) => {
+            console.log('🎵 Preparando áudio, tamanho base64:', base64.length);
+            
             this.state.speaking = true;
             this.state.processing = false;
             this.$.orb.classList.add('speaking');
             
-            const audioData = `data:audio/mp3;base64,${base64}`;
-            this.audio.src = audioData;
+            // No iOS, usar TTS do navegador diretamente (mais confiável)
+            if (this.isIOS) {
+                console.log('📱 iOS detectado, usando TTS do navegador');
+                await this.speakWithBrowser(this.lastResponse || '');
+                resolve();
+                return;
+            }
             
-            this.audio.onended = () => {
+            // Sempre criar novo Audio
+            const audio = new Audio();
+            
+            // Converter base64 para blob
+            try {
+                const byteCharacters = atob(base64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(blob);
+                audio.src = audioUrl;
+            } catch (e) {
+                console.error('❌ Erro base64:', e);
+                audio.src = `data:audio/mpeg;base64,${base64}`;
+            }
+            
+            audio.volume = 1.0;
+            audio.preload = 'auto';
+            
+            const cleanup = () => {
                 this.state.speaking = false;
                 this.$.orb.classList.remove('speaking');
+                if (audio.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(audio.src);
+                }
+            };
+            
+            audio.onended = () => {
+                console.log('🎵 Audio finalizado');
+                cleanup();
                 resolve();
             };
             
-            this.audio.onerror = (e) => {
-                console.error('Erro ao tocar áudio:', e);
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
+            audio.onerror = async (e) => {
+                console.error('❌ Erro áudio:', e);
+                cleanup();
+                await this.speakWithBrowser(this.lastResponse || '');
                 resolve();
             };
             
-            this.audio.play().catch((e) => {
-                console.error('Erro play:', e);
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
+            try {
+                await audio.play();
+                console.log('▶️ Audio tocando');
+            } catch (e) {
+                console.error('❌ Erro play:', e.message);
+                cleanup();
+                await this.speakWithBrowser(this.lastResponse || '');
                 resolve();
-            });
+            }
         });
     }
     
