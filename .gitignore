@@ -11,3 +11,4 @@ public/audio/*.mp3
 .DS_Store
 Thumbs.db
 .vercel
+.env*.local
