@@ -287,12 +287,14 @@ app.post('/api/chat', async (req, res) => {
         // Gerar resposta
         const response = await chat(message, sessionId);
         
-        // Gerar áudio
+        // Gerar áudio (apenas se não estiver na Vercel - TTS requer Python)
         let audio = null;
-        try {
-            audio = await generateAudio(response, db.settings.voice, db.settings.speed);
-        } catch (e) {
-            console.warn('TTS falhou:', e.message);
+        if (process.env.VERCEL !== '1') {
+            try {
+                audio = await generateAudio(response, db.settings.voice, db.settings.speed);
+            } catch (e) {
+                console.warn('TTS falhou:', e.message);
+            }
         }
 
         const elapsed = Date.now() - start;
@@ -302,7 +304,8 @@ app.post('/api/chat', async (req, res) => {
             response,
             audioUrl: audio?.url || null,
             cached: audio?.cached || false,
-            time: elapsed
+            time: elapsed,
+            useBrowserTTS: process.env.VERCEL === '1' // Indica para usar TTS do navegador
         });
 
     } catch (error) {
@@ -378,8 +381,11 @@ app.get('/', (req, res) => {
 // ============================================
 // INICIAR SERVIDOR
 // ============================================
-app.listen(PORT, () => {
-    console.log(`
+// INICIAR SERVIDOR (apenas se não for Vercel)
+// ============================================
+if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+        console.log(`
 🎤 ARIA Voice v5.0
    
    URL: http://localhost:${PORT}
@@ -388,7 +394,8 @@ app.listen(PORT, () => {
    
    API Key: ${OPENROUTER_API_KEY ? '✓ configurada' : '✗ faltando'}
 `);
-});
+    });
+}
 
 // Salvar ao encerrar
 process.on('SIGINT', () => {
@@ -396,3 +403,6 @@ process.on('SIGINT', () => {
     console.log('\n💾 Configurações salvas');
     process.exit();
 });
+
+// Exportar para Vercel
+module.exports = app;

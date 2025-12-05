@@ -207,10 +207,11 @@ class ARIA {
             
             this.$.orb.classList.remove('thinking');
             
-            if (data.audioUrl) {
-                await this.playAudio(data.audioUrl);
+            // Usar TTS do navegador se servidor indicar (Vercel) ou não houver áudio
+            if (data.useBrowserTTS || !data.audioUrl) {
+                await this.speakWithBrowser(data.response);
             } else {
-                this.state.processing = false;
+                await this.playAudio(data.audioUrl);
             }
             
         } catch (error) {
@@ -221,7 +222,52 @@ class ARIA {
     }
     
     // ============================================
-    // ÁUDIO
+    // TTS DO NAVEGADOR (fallback para Vercel)
+    // ============================================
+    
+    async speakWithBrowser(text) {
+        return new Promise((resolve) => {
+            if (!('speechSynthesis' in window)) {
+                console.warn('SpeechSynthesis não suportado');
+                this.state.processing = false;
+                return resolve();
+            }
+            
+            // Cancelar fala anterior
+            speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1 + (this.settings.speed / 100);
+            utterance.pitch = 1;
+            
+            // Tentar encontrar voz em português
+            const voices = speechSynthesis.getVoices();
+            const ptVoice = voices.find(v => v.lang.startsWith('pt')) || voices[0];
+            if (ptVoice) utterance.voice = ptVoice;
+            
+            this.state.speaking = true;
+            this.state.processing = false;
+            this.$.orb.classList.add('speaking');
+            
+            utterance.onend = () => {
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
+            };
+            
+            utterance.onerror = () => {
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
+            };
+            
+            speechSynthesis.speak(utterance);
+        });
+    }
+    
+    // ============================================
+    // ÁUDIO (Edge-TTS local)
     // ============================================
     
     async playAudio(url) {
