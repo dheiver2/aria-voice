@@ -127,12 +127,12 @@ class ARIA {
             if (result.isFinal) {
                 this.processTranscript();
             } else {
-                // Processar após 1.5s de silêncio
+                // Processar após 0.8s de silêncio (mais rápido)
                 this.speechTimeout = setTimeout(() => {
                     if (this.transcript && this.state.listening) {
                         this.processTranscript();
                     }
-                }, 1500);
+                }, 800);
             }
         };
         
