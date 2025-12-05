@@ -478,9 +478,13 @@ app.post('/api/voice', async (req, res) => {
 
         // Gerar TTS
         const cleanTTSText = text.replace(/"/g, "'").replace(/\n/g, ' ').substring(0, 800);
+        // Converter speed numérico para formato do edge-tts (ex: 0 -> "+0%", 10 -> "+10%", -10 -> "-10%")
+        const speedValue = typeof userSettings.speed === 'number' ? userSettings.speed : parseInt(userSettings.speed) || 0;
+        const speedRate = speedValue >= 0 ? `+${speedValue}%` : `${speedValue}%`;
+        
         const tts = spawn('edge-tts', [
             '--voice', voiceConfig.id,
-            '--rate', userSettings.speed,
+            '--rate', speedRate,
             '--text', cleanTTSText,
             '--write-media', filepath
         ]);
@@ -527,9 +531,13 @@ app.post('/api/tts', async (req, res) => {
         }
 
         const cleanText = text.replace(/"/g, "'").replace(/\n/g, ' ').substring(0, 800);
+        // Converter rate numérico para formato do edge-tts
+        const rateValue = typeof rate === 'number' ? rate : parseInt(rate) || 0;
+        const rateStr = rateValue >= 0 ? `+${rateValue}%` : `${rateValue}%`;
+        
         const tts = spawn('edge-tts', [
             '--voice', voiceConfig.id,
-            '--rate', rate,
+            '--rate', rateStr,
             '--text', cleanText,
             '--write-media', filepath
         ]);
