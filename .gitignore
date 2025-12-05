@@ -10,3 +10,4 @@ public/audio/*.mp3
 # Sistema
 .DS_Store
 Thumbs.db
+.vercel
