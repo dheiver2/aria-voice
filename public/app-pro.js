@@ -45,6 +45,9 @@ class ARIAVoicePRO {
             retryCount: 0
         };
         
+        // Flag para vibração (só funciona após interação)
+        this.userHasInteracted = false;
+        
         // Configurações
         this.settings = {
             voice: 'francisca',
@@ -686,11 +689,13 @@ class ARIAVoicePRO {
             this.elements.waveformContainer.classList.remove('active');
         }
         
-        // Vibração mobile
-        if (navigator.vibrate) {
-            if (state === 'listening') navigator.vibrate(50);
-            if (state === 'error') navigator.vibrate([100, 50, 100]);
-        }
+        // Vibração mobile (só funciona após interação do usuário)
+        try {
+            if (navigator.vibrate && this.userHasInteracted) {
+                if (state === 'listening') navigator.vibrate(50);
+                if (state === 'error') navigator.vibrate([100, 50, 100]);
+            }
+        } catch (e) { /* Ignorar erro de vibração */ }
     }
     
     // ============================================
@@ -698,8 +703,14 @@ class ARIAVoicePRO {
     // ============================================
     
     setupEventListeners() {
+        // Marcar interação do usuário para permitir vibração
+        document.addEventListener('click', () => {
+            this.userHasInteracted = true;
+        }, { once: true });
+        
         // Orb click
         this.elements.orbContainer.addEventListener('click', () => {
+            this.userHasInteracted = true;
             if (this.state.isSpeaking) {
                 this.stopSpeaking();
             } else if (this.state.isListening) {
