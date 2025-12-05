@@ -1,6 +1,7 @@
 {
-  "voice": "thalita",
+  "voice": "francisca",
   "speed": 0,
+  "model": "openai/gpt-4o-mini",
   "language": "pt-BR",
   "wakeWord": "aria",
   "continuousMode": true,

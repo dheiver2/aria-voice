@@ -2,203 +2,861 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ARIA Voice PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ARIA - Expandindo Consciências</title>
     
-    <!-- PWA -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0a0a1a">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="/icon-192.png">
     
-    <!-- Preload -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles-pro.css">
+    <style>
+        :root {
+            --primary: #00f5ff;
+            --primary-glow: rgba(0, 245, 255, 0.5);
+            --secondary: #ff00ff;
+            --secondary-glow: rgba(255, 0, 255, 0.5);
+            --accent: #7c3aed;
+            --gold: #ffd700;
+            --bg-deep: #030308;
+            --bg: #0a0a1a;
+            --surface: rgba(255,255,255,0.03);
+            --border: rgba(255,255,255,0.08);
+            --text: #ffffff;
+            --text-muted: rgba(255,255,255,0.5);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Fundo com partículas animadas */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0;
+            animation: float 8s infinite ease-in-out;
+        }
+        
+        @keyframes float {
+            0%, 100% { opacity: 0; transform: translateY(100vh) scale(0); }
+            10% { opacity: 0.8; }
+            90% { opacity: 0.8; }
+            100% { opacity: 0; transform: translateY(-10vh) scale(1); }
+        }
+        
+        /* Grade de fundo */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        /* Container principal */
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            z-index: 1;
+        }
+        
+        /* Botão de configurações */
+        #settingsBtn {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            opacity: 0.4;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        #settingsBtn:hover {
+            opacity: 1;
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: rotate(45deg);
+        }
+        
+        /* Container do Orbe */
+        .orb-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Anéis orbitais */
+        .orbit-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid transparent;
+            animation: orbit 20s linear infinite;
+        }
+        
+        .orbit-ring-1 {
+            width: 320px;
+            height: 320px;
+            border-color: rgba(0, 245, 255, 0.1);
+            animation-duration: 25s;
+        }
+        
+        .orbit-ring-2 {
+            width: 380px;
+            height: 380px;
+            border-color: rgba(255, 0, 255, 0.08);
+            animation-duration: 35s;
+            animation-direction: reverse;
+        }
+        
+        .orbit-ring-3 {
+            width: 440px;
+            height: 440px;
+            border-color: rgba(124, 58, 237, 0.05);
+            animation-duration: 45s;
+        }
+        
+        @keyframes orbit {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Pontos orbitais */
+        .orbit-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary);
+        }
+        
+        .orbit-ring-1 .orbit-dot { top: -3px; left: 50%; }
+        .orbit-ring-2 .orbit-dot { top: 50%; right: -3px; }
+        .orbit-ring-3 .orbit-dot { bottom: -3px; left: 30%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        
+        /* Orbe principal */
+        #orb {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+        }
+        
+        /* Camadas do orbe */
+        .orb-core {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, 
+                rgba(255, 255, 255, 0.4) 0%,
+                var(--primary) 20%,
+                var(--secondary) 60%,
+                var(--accent) 100%
+            );
+            filter: blur(0px);
+            transition: all 0.5s ease;
+        }
+        
+        .orb-glow {
+            position: absolute;
+            inset: -20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, 
+                var(--primary-glow) 0%,
+                transparent 70%
+            );
+            filter: blur(20px);
+            opacity: 0.6;
+            transition: all 0.5s ease;
+        }
+        
+        .orb-ring {
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.5s ease;
+        }
+        
+        .orb-pulse {
+            position: absolute;
+            inset: -30px;
+            border-radius: 50%;
+            border: 1px solid var(--primary);
+            opacity: 0;
+            animation: none;
+        }
+        
+        @keyframes pulse-wave {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        
+        /* Reflexo interno */
+        .orb-reflection {
+            position: absolute;
+            top: 15%;
+            left: 20%;
+            width: 30%;
+            height: 20%;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            filter: blur(10px);
+            transform: rotate(-30deg);
+        }
+        
+        /* Efeito de ondas sonoras */
+        .sound-waves {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        .wave {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            opacity: 0;
+        }
+        
+        /* Estados do Orbe */
+        #orb:hover .orb-glow {
+            opacity: 0.8;
+            inset: -30px;
+        }
+        
+        #orb:hover .orb-ring {
+            border-color: var(--primary);
+            inset: -8px;
+        }
+        
+        #orb:active {
+            transform: scale(0.95);
+        }
+        
+        /* Estado: Escutando */
+        #orb.listening .orb-core {
+            animation: breathe 2s ease-in-out infinite;
+        }
+        
+        #orb.listening .orb-glow {
+            opacity: 1;
+            animation: glow-pulse 1.5s ease-in-out infinite;
+        }
+        
+        #orb.listening .orb-pulse {
+            animation: pulse-wave 2s ease-out infinite;
+        }
+        
+        #orb.listening .wave {
+            animation: wave-expand 1.5s ease-out infinite;
+        }
+        
+        #orb.listening .wave:nth-child(2) { animation-delay: 0.3s; }
+        #orb.listening .wave:nth-child(3) { animation-delay: 0.6s; }
+        
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes glow-pulse {
+            0%, 100% { opacity: 0.6; filter: blur(20px); }
+            50% { opacity: 1; filter: blur(30px); }
+        }
+        
+        @keyframes wave-expand {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+        
+        /* Estado: Pensando */
+        #orb.thinking .orb-core {
+            background: radial-gradient(circle at 30% 30%, 
+                rgba(255, 255, 255, 0.4) 0%,
+                var(--gold) 20%,
+                #ff8c00 60%,
+                #ff4500 100%
+            );
+            animation: think-rotate 3s linear infinite;
+        }
+        
+        #orb.thinking .orb-glow {
+            background: radial-gradient(circle, 
+                rgba(255, 215, 0, 0.5) 0%,
+                transparent 70%
+            );
+            animation: think-glow 0.8s ease-in-out infinite;
+        }
+        
+        #orb.thinking .orb-ring {
+            border-color: var(--gold);
+            animation: ring-spin 2s linear infinite;
+        }
+        
+        @keyframes think-rotate {
+            from { filter: hue-rotate(0deg); }
+            to { filter: hue-rotate(30deg); }
+        }
+        
+        @keyframes think-glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        @keyframes ring-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Estado: Falando */
+        #orb.speaking .orb-core {
+            background: radial-gradient(circle at 30% 30%, 
+                rgba(255, 255, 255, 0.5) 0%,
+                var(--secondary) 20%,
+                #9333ea 60%,
+                var(--accent) 100%
+            );
+            animation: speak-pulse 0.3s ease-in-out infinite alternate;
+        }
+        
+        #orb.speaking .orb-glow {
+            background: radial-gradient(circle, 
+                var(--secondary-glow) 0%,
+                transparent 70%
+            );
+            animation: speak-glow 0.5s ease-in-out infinite;
+        }
+        
+        #orb.speaking .sound-waves .wave {
+            border-color: var(--secondary);
+            animation: sound-wave 0.8s ease-out infinite;
+        }
+        
+        #orb.speaking .sound-waves .wave:nth-child(2) { animation-delay: 0.2s; }
+        #orb.speaking .sound-waves .wave:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes speak-pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.03); }
+        }
+        
+        @keyframes speak-glow {
+            0%, 100% { opacity: 0.7; inset: -25px; }
+            50% { opacity: 1; inset: -35px; }
+        }
+        
+        @keyframes sound-wave {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        
+        /* Visualizador de áudio */
+        .audio-visualizer {
+            position: absolute;
+            bottom: -60px;
+            display: flex;
+            gap: 4px;
+            align-items: flex-end;
+            height: 40px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #orb.speaking ~ .audio-visualizer,
+        #orb.listening ~ .audio-visualizer {
+            opacity: 1;
+        }
+        
+        .bar {
+            width: 4px;
+            background: linear-gradient(to top, var(--primary), var(--secondary));
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+        
+        /* Indicador de energia */
+        .energy-indicator {
+            position: absolute;
+            bottom: -100px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        #orb.listening ~ .energy-indicator,
+        #orb.speaking ~ .energy-indicator {
+            opacity: 1;
+        }
+        
+        .energy-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: energy-pulse 1s ease-in-out infinite;
+        }
+        
+        .energy-dot:nth-child(2) { animation-delay: 0.2s; }
+        .energy-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes energy-pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        /* Painel de Configurações */
+        #settingsPanel {
+            position: fixed;
+            top: 0;
+            right: -360px;
+            width: 340px;
+            height: 100vh;
+            background: rgba(10, 10, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border);
+            padding: 2rem;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 200;
+            overflow-y: auto;
+        }
+        
+        #settingsPanel.open {
+            right: 0;
+        }
+        
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 150;
+        }
+        
+        #settingsPanel.open ~ .settings-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .settings-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 500;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .close-btn:hover {
+            color: var(--primary);
+            background: var(--surface);
+        }
+        
+        .setting-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .setting-group label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23666' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.1);
+        }
+        
+        select:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Slider de velocidade */
+        .speed-control {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--text);
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        
+        .speed-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        #speedValue {
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        /* Botão Nova Conversa */
+        #clearBtn {
+            width: 100%;
+            padding: 1rem;
+            background: transparent;
+            border: 1px solid rgba(255, 100, 100, 0.3);
+            border-radius: 12px;
+            color: #ff6b6b;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-top: 2rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        #clearBtn:hover {
+            background: rgba(255, 100, 100, 0.1);
+            border-color: #ff6b6b;
+        }
+        
+        /* Informações do sistema */
+        .system-info {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        .info-value {
+            color: var(--primary);
+        }
+        
+        /* Mobile */
+        @media (max-width: 480px) {
+            #orb {
+                width: 160px;
+                height: 160px;
+            }
+            
+            .orbit-ring-1 { width: 260px; height: 260px; }
+            .orbit-ring-2 { width: 310px; height: 310px; }
+            .orbit-ring-3 { width: 360px; height: 360px; }
+            
+            #settingsBtn {
+                top: 1rem;
+                right: 1rem;
+                width: 40px;
+                height: 40px;
+            }
+            
+            #settingsPanel {
+                width: 100%;
+                right: -100%;
+            }
+        }
+        
+        /* Animação de entrada */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .orb-wrapper {
+            animation: fadeIn 1s ease-out;
+        }
+    </style>
 </head>
 <body>
-    <div class="app">
-        <!-- Fundo animado com partículas -->
-        <canvas id="particleCanvas"></canvas>
+    <!-- Fundo animado -->
+    <div class="grid-bg"></div>
+    <div class="particles" id="particles"></div>
+    
+    <div class="container">
+        <!-- Botão configurações -->
+        <button id="settingsBtn" aria-label="Configurações">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+        </button>
         
-        <!-- Container principal -->
-        <div class="main-container">
-            <!-- Status bar superior -->
-            <div class="status-bar">
-                <div class="status-item" id="connectionStatus">
-                    <span class="status-dot online"></span>
-                    <span>Conectado</span>
-                </div>
-                <div class="status-item" id="memoryStatus">
-                    <span class="memory-icon">🧠</span>
-                    <span id="memoryCount">0</span>
-                </div>
-                <button class="settings-btn" id="settingsBtn">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                </button>
-            </div>
+        <!-- Orbe principal -->
+        <div class="orb-wrapper">
+            <!-- Anéis orbitais -->
+            <div class="orbit-ring orbit-ring-1"><div class="orbit-dot"></div></div>
+            <div class="orbit-ring orbit-ring-2"><div class="orbit-dot"></div></div>
+            <div class="orbit-ring orbit-ring-3"><div class="orbit-dot"></div></div>
             
-            <!-- Orbe 3D Central -->
-            <div class="orb-wrapper">
-                <div class="orb-container" id="orbContainer">
-                    <!-- Anéis externos -->
-                    <div class="orbit-ring orbit-1"></div>
-                    <div class="orbit-ring orbit-2"></div>
-                    <div class="orbit-ring orbit-3"></div>
-                    
-                    <!-- Orbe principal -->
-                    <div class="orb" id="orb">
-                        <div class="orb-sphere">
-                            <div class="orb-gradient"></div>
-                            <div class="orb-shine"></div>
-                            <div class="orb-glow"></div>
-                        </div>
-                        
-                        <!-- Ondas sonoras -->
-                        <div class="sound-rings" id="soundRings">
-                            <div class="sound-ring"></div>
-                            <div class="sound-ring"></div>
-                            <div class="sound-ring"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Indicador de volume circular -->
-                    <svg class="volume-ring" id="volumeRing" viewBox="0 0 200 200">
-                        <circle class="volume-bg" cx="100" cy="100" r="95" />
-                        <circle class="volume-fill" cx="100" cy="100" r="95" />
-                    </svg>
-                </div>
-                
-                <!-- Indicador de estado -->
-                <div class="state-indicator" id="stateIndicator">
-                    <div class="state-icon" id="stateIcon"></div>
-                    <div class="state-text" id="stateText">Toque para falar</div>
+            <!-- Orbe -->
+            <div id="orb">
+                <div class="orb-glow"></div>
+                <div class="orb-core"></div>
+                <div class="orb-ring"></div>
+                <div class="orb-reflection"></div>
+                <div class="orb-pulse"></div>
+                <div class="sound-waves">
+                    <div class="wave"></div>
+                    <div class="wave"></div>
+                    <div class="wave"></div>
                 </div>
             </div>
             
-            <!-- Sentiment indicator -->
-            <div class="sentiment-display" id="sentimentDisplay">
-                <span class="sentiment-emoji" id="sentimentEmoji">😊</span>
-            </div>
+            <!-- Visualizador de áudio -->
+            <div class="audio-visualizer" id="visualizer"></div>
             
-            <!-- Visualizador de waveform -->
-            <div class="waveform-container" id="waveformContainer">
-                <canvas id="waveformCanvas"></canvas>
-            </div>
-            
-            <!-- Atalhos rápidos -->
-            <div class="quick-actions">
-                <button class="quick-btn" data-action="clear" title="Nova conversa">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                </button>
-                <button class="quick-btn" data-action="repeat" title="Repetir">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-                </button>
-                <button class="quick-btn" data-action="stop" title="Parar">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
-                </button>
-            </div>
-        </div>
-        
-        <!-- Painel de configurações -->
-        <div class="settings-panel" id="settingsPanel">
-            <div class="settings-header">
-                <h2>Configurações</h2>
-                <button class="close-btn" id="closeSettings">×</button>
-            </div>
-            <div class="settings-content">
-                <div class="setting-group">
-                    <label>Voz</label>
-                    <select id="voiceSelect">
-                        <option value="francisca">Francisca (Natural)</option>
-                        <option value="thalita">Thalita (Alegre)</option>
-                        <option value="leila">Leila (Calma)</option>
-                        <option value="antonio">Antonio (Masculina)</option>
-                        <option value="fabio">Fábio (Casual)</option>
-                        <option value="jenny">Jenny (English)</option>
-                        <option value="aria-en">Aria (English)</option>
-                    </select>
-                </div>
-                <div class="setting-group">
-                    <label>Velocidade</label>
-                    <input type="range" id="speedRange" min="-50" max="50" value="0">
-                    <span id="speedValue">Normal</span>
-                </div>
-                <div class="setting-group">
-                    <label>Wake Word</label>
-                    <div class="toggle-container">
-                        <span>Dizer "Ei ARIA" para ativar</span>
-                        <input type="checkbox" id="wakeWordToggle" class="toggle">
-                    </div>
-                </div>
-                <div class="setting-group">
-                    <label>Modo Contínuo</label>
-                    <div class="toggle-container">
-                        <span>Ouvir automaticamente</span>
-                        <input type="checkbox" id="continuousToggle" class="toggle" checked>
-                    </div>
-                </div>
-                <div class="setting-group memory-section">
-                    <label>Memória</label>
-                    <div class="memory-info">
-                        <span id="memoryInfo">0 lembranças salvas</span>
-                        <button class="danger-btn" id="clearMemory">Limpar</button>
-                    </div>
-                    <div class="memory-list" id="memoryList"></div>
-                </div>
-                
-                <!-- Diagnóstico do Sistema -->
-                <div class="setting-group" style="border-top: 1px solid var(--glass-border); padding-top: 20px; margin-top: 20px;">
-                    <label>🔧 Diagnóstico do Sistema</label>
-                    <div id="diagnosticPanel" class="diagnostic-panel">
-                        <div class="diagnostic-item" id="diag-server">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">Servidor Backend</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                        <div class="diagnostic-item" id="diag-api">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">API OpenRouter</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                        <div class="diagnostic-item" id="diag-tts">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">Síntese de Voz (TTS)</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                        <div class="diagnostic-item" id="diag-mic">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">Microfone</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                        <div class="diagnostic-item" id="diag-speech">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">Reconhecimento de Voz</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                        <div class="diagnostic-item" id="diag-audio">
-                            <span class="diag-icon">⏳</span>
-                            <span class="diag-label">Reprodução de Áudio</span>
-                            <span class="diag-status">Verificando...</span>
-                        </div>
-                    </div>
-                    <button class="diagnostic-btn" id="runDiagnostic" style="width: 100%; margin-top: 12px; padding: 12px; background: var(--primary); border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer;">
-                        🔄 Executar Diagnóstico
-                    </button>
-                    <button class="diagnostic-btn" id="testVoice" style="width: 100%; margin-top: 8px; padding: 12px; background: var(--glass); border: 1px solid var(--primary); border-radius: 8px; color: var(--primary); font-weight: 600; cursor: pointer;">
-                        🎤 Testar Voz Completo
-                    </button>
-                </div>
+            <!-- Indicador de energia -->
+            <div class="energy-indicator">
+                <div class="energy-dot"></div>
+                <div class="energy-dot"></div>
+                <div class="energy-dot"></div>
             </div>
         </div>
     </div>
     
-    <!-- Audio -->
-    <audio id="audioPlayer" preload="auto"></audio>
+    <!-- Painel de Configurações -->
+    <div id="settingsPanel">
+        <div class="settings-header">
+            <h2>⚙ CONFIGURAÇÕES</h2>
+            <button class="close-btn" id="closeSettings">×</button>
+        </div>
+        
+        <div class="setting-group">
+            <label>Modelo de IA</label>
+            <select id="modelSelect">
+                <option value="openai/gpt-4o-mini">⚡ GPT-4o Mini</option>
+                <option value="openai/gpt-4o">🧠 GPT-4o</option>
+                <option value="anthropic/claude-3.5-sonnet">✨ Claude 3.5 Sonnet</option>
+                <option value="anthropic/claude-3-haiku">🌸 Claude 3 Haiku</option>
+                <option value="meta-llama/llama-3.1-70b-instruct">🦙 Llama 3.1 70B</option>
+                <option value="meta-llama/llama-3.1-8b-instruct">🆓 Llama 3.1 8B</option>
+                <option value="google/gemini-pro-1.5">💎 Gemini Pro 1.5</option>
+                <option value="mistralai/mistral-7b-instruct">🌬 Mistral 7B</option>
+            </select>
+        </div>
+        
+        <div class="setting-group">
+            <label>Voz</label>
+            <select id="voiceSelect">
+                <option value="francisca">🇧🇷 Francisca</option>
+                <option value="thalita">🇧🇷 Thalita</option>
+                <option value="antonio">🇧🇷 Antonio</option>
+                <option value="jenny">🇺🇸 Jenny</option>
+                <option value="guy">🇺🇸 Guy</option>
+            </select>
+        </div>
+        
+        <div class="setting-group">
+            <label>Velocidade da Fala</label>
+            <div class="speed-control">
+                <input type="range" id="speedRange" min="-50" max="50" value="0">
+                <div class="speed-labels">
+                    <span>Lento</span>
+                    <span id="speedValue">Normal</span>
+                    <span>Rápido</span>
+                </div>
+            </div>
+        </div>
+        
+        <button id="clearBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+            Nova Conversa
+        </button>
+        
+        <div class="system-info">
+            <div class="info-item">
+                <span>Versão</span>
+                <span class="info-value">5.0</span>
+            </div>
+            <div class="info-item">
+                <span>Motor TTS</span>
+                <span class="info-value">Edge Neural</span>
+            </div>
+            <div class="info-item">
+                <span>Backend</span>
+                <span class="info-value">OpenRouter</span>
+            </div>
+        </div>
+    </div>
     
-    <script src="app-pro.js"></script>
+    <div class="settings-overlay" id="settingsOverlay"></div>
+    
+    <script src="/app.js"></script>
+    <script>
+        // Criar partículas de fundo
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 8 + 's';
+            particle.style.animationDuration = (6 + Math.random() * 6) + 's';
+            particlesContainer.appendChild(particle);
+        }
+        
+        // Criar barras do visualizador
+        const visualizer = document.getElementById('visualizer');
+        for (let i = 0; i < 12; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            bar.style.height = '4px';
+            visualizer.appendChild(bar);
+        }
+        
+        // Animar visualizador
+        const bars = visualizer.querySelectorAll('.bar');
+        function animateVisualizer() {
+            const orb = document.getElementById('orb');
+            if (orb.classList.contains('speaking') || orb.classList.contains('listening')) {
+                bars.forEach(bar => {
+                    const height = Math.random() * 35 + 5;
+                    bar.style.height = height + 'px';
+                });
+            } else {
+                bars.forEach(bar => bar.style.height = '4px');
+            }
+            requestAnimationFrame(animateVisualizer);
+        }
+        animateVisualizer();
+        
+        // Fechar configurações com overlay
+        document.getElementById('settingsOverlay').addEventListener('click', () => {
+            document.getElementById('settingsPanel').classList.remove('open');
+        });
+        
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            document.getElementById('settingsPanel').classList.remove('open');
+        });
+    </script>
 </body>
 </html>

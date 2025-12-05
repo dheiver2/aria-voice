@@ -1,11 +1,23 @@
-const CACHE_NAME = 'aria-voice-v3';
+const CACHE_NAME = 'aria-voice-v6-fresh';
 const ASSETS = [
     '/',
-    '/index-pro.html',
-    '/styles-pro.css',
-    '/app-pro.js',
-    '/manifest.json'
+    '/index.html',
+    '/app.js',
+    '/manifest.json',
+    '/favicon.svg'
 ];
+
+// Limpar caches antigos
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then(keys => {
+            return Promise.all(
+                keys.filter(key => key !== CACHE_NAME)
+                    .map(key => caches.delete(key))
+            );
+        })
+    );
+});
 
 self.addEventListener('install', (event) => {
     event.waitUntil(

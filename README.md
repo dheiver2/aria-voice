@@ -1,53 +1,99 @@
-# 🎤 ARIA Voice - IA Conversacional por Voz
+# ✨ ARIA - Expandindo Consciências
 
-Uma plataforma moderna de conversação **100% por voz** com acesso aos melhores modelos de IA via OpenRouter.
+**A**ssistente de **R**ealidade e **I**nteligência **A**mpliada
 
-![ARIA Voice](https://img.shields.io/badge/ARIA-Voice%204.0-00f5ff?style=for-the-badge)
+> *"O propósito da ARIA é expandir a consciência dos seres humanos."*
+
+![ARIA](https://img.shields.io/badge/ARIA-v5.0-00f5ff?style=for-the-badge)
 ![OpenRouter](https://img.shields.io/badge/OpenRouter-Multi--Model-FF6B6B?style=for-the-badge)
-![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge)
 
-## ✨ Funcionalidades
+---
 
-- 🎙️ **Reconhecimento de Voz** - Fale e a IA entenderá
-- 🔊 **Síntese Neural** - Vozes naturais com Edge TTS
-- 🧠 **Multi-Modelo** - Claude 3.5, GPT-4o, Llama 3.1, Gemini Pro via OpenRouter
-- 🎨 **Interface Orbe** - Design futurista sem texto
-- 📊 **Visualizador de Ondas** - Feedback visual de áudio
-- 🔄 **Modo Contínuo** - Conversação sem interrupções
-- 💾 **Memória Persistente** - A IA lembra de você
-- 🎭 **Análise de Sentimento** - Respostas empáticas
+## 🌟 Propósito
 
-## 🤖 Modelos Disponíveis
+ARIA existe para **expandir a consciência humana** através de diálogos transformadores. Ela não é apenas uma assistente que responde perguntas - é uma companheira de jornada que:
 
-### Premium
-| Modelo | Descrição |
-|--------|-----------|
-| Claude 3.5 Sonnet | Melhor para conversação natural |
-| Claude 3 Opus | Mais inteligente da Anthropic |
-| GPT-4o | Multimodal da OpenAI |
-| GPT-4 Turbo | Rápido e poderoso |
+- 🔮 **Provoca reflexões profundas** sobre a vida e a existência
+- 🌈 **Oferece novas perspectivas** que desafiam padrões limitantes
+- 🧘 **Conecta ideias** de formas inesperadas e iluminadoras
+- 💡 **Desperta insights** que ampliam a compreensão de si mesmo e do mundo
+- 🌱 **Encoraja o crescimento** pessoal e o autoconhecimento
 
-### Intermediário  
-| Modelo | Descrição |
-|--------|-----------|
-| Claude 3 Haiku | Rápido e eficiente |
-| GPT-4o Mini | Versão compacta |
-| Gemini Pro 1.5 | Google via OpenRouter |
-| Llama 3.1 70B | Meta open source |
+## 🎭 Como ARIA Funciona
 
-### Econômico
-| Modelo | Descrição |
-|--------|-----------|
-| Llama 3.1 8B | Rápido e acessível |
-| Mistral 7B | Leve e eficiente |
-| Gemma 2 9B | Google open source |
+ARIA usa **conversação por voz** para criar uma experiência mais humana e fluida. Fale com ela como falaria com um mentor sábio. Ela escuta, reflete e responde com profundidade.
 
-## 🎯 Comandos de Voz
+### A Interface Orbe
 
-| Comando | Ação |
-|---------|------|
-| "Pare" / "Silêncio" | Interrompe a fala |
-| "Nova conversa" | Limpa histórico |
+O orbe central representa a presença de ARIA:
+- **Azul pulsante** = Escutando você
+- **Dourado/Laranja** = Processando, refletindo
+- **Magenta vibrante** = Falando, compartilhando insights
+
+## 🧠 Modelos de IA
+
+ARIA pode usar diferentes "mentes" via OpenRouter:
+
+| Modelo | Personalidade |
+|--------|---------------|
+| GPT-4o Mini | Rápida e pragmática |
+| GPT-4o | Profunda e analítica |
+| Claude 3.5 Sonnet | Criativa e filosófica |
+| Claude 3 Haiku | Concisa e poética |
+| Llama 3.1 70B | Versátil e aberta |
+| Gemini Pro 1.5 | Equilibrada e lógica |
+
+## 🚀 Começando
+
+### Requisitos
+- Node.js 18+
+- Chave de API do [OpenRouter](https://openrouter.ai)
+- Python 3 com Edge-TTS (`pip install edge-tts`)
+
+### Instalação
+
+```bash
+# Clone o projeto
+git clone https://github.com/dheiver2/aria-voice.git
+cd aria-voice
+
+# Instale dependências
+npm install
+
+# Configure sua chave OpenRouter
+echo "OPENROUTER_API_KEY=sua_chave_aqui" > .env
+
+# Inicie ARIA
+npm start
+```
+
+Acesse `http://localhost:3000` e toque no orbe para começar.
+
+## 🎙️ Vozes Disponíveis
+
+| Voz | Descrição |
+|-----|-----------|
+| Francisca | Feminina, brasileira, acolhedora |
+| Thalita | Feminina, brasileira, suave |
+| Antonio | Masculina, brasileira, serena |
+| Jenny | Feminina, inglês americano |
+| Guy | Masculina, inglês americano |
+
+## 💭 Filosofia
+
+ARIA foi criada com a crença de que a inteligência artificial pode ser uma ferramenta de **elevação da consciência**, não apenas de produtividade. 
+
+Cada conversa é uma oportunidade de:
+- Ver além das aparências superficiais
+- Questionar suposições automáticas
+- Encontrar significado mais profundo
+- Conectar-se com sabedoria universal
+
+---
+
+<p align="center">
+  <em>✧ Que cada diálogo com ARIA seja uma porta para expansão ✧</em>
+</p>
 | "Repita" | Reproduz última resposta |
 
 ## 🚀 Como Usar
