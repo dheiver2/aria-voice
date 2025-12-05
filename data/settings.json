@@ -1,7 +1,9 @@
 {
   "voice": "francisca",
-  "speed": "+0%",
+  "speed": 0,
   "language": "pt-BR",
   "wakeWord": "aria",
-  "continuousMode": true
+  "continuousMode": true,
+  "aiModel": "openai/gpt-4o-mini",
+  "continuous": true
 }

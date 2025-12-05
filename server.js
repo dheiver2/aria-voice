@@ -1,13 +1,12 @@
 /**
- * ARIA Voice PRO - Servidor Avançado
- * Versão 3.0 com streaming, memória persistente e recursos avançados
+ * ARIA Voice PRO - Servidor com OpenRouter
+ * Versão 4.0 com modelos premium (Claude, GPT-4, Llama, etc.)
  */
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -15,6 +14,15 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Handler global para erros não tratados
+process.on('uncaughtException', (err) => {
+    console.error('❌ Erro não tratado:', err.message);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Promise rejeitada:', reason);
+});
 
 // ============================================
 // MIDDLEWARE
@@ -66,7 +74,8 @@ let userSettings = loadJSON(SETTINGS_FILE, {
     speed: '+0%',
     language: 'pt-BR',
     wakeWord: 'aria',
-    continuousMode: true
+    continuousMode: true,
+    aiModel: 'openai/gpt-4o-mini'  // Modelo padrão - estável e econômico
 });
 
 // Salvar periodicamente
@@ -77,23 +86,36 @@ setInterval(() => {
 }, 30000);
 
 // ============================================
-// GEMINI AI - CONFIGURAÇÃO AVANÇADA
+// OPENROUTER AI - CONFIGURAÇÃO
 // ============================================
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
-// Modelo principal com contexto rico
-const modelConfig = {
-    model: "gemini-2.0-flash-exp",
-    generationConfig: {
-        temperature: 0.8,
-        topK: 40,
-        topP: 0.9,
-        maxOutputTokens: 2048,
-    }
+// Modelos disponíveis no OpenRouter (do melhor para o mais econômico)
+const AVAILABLE_MODELS = {
+    // Premium - Máxima qualidade
+    'anthropic/claude-3.5-sonnet': { name: 'Claude 3.5 Sonnet', tier: 'premium', description: 'Melhor para conversação natural' },
+    'anthropic/claude-3-opus': { name: 'Claude 3 Opus', tier: 'premium', description: 'Mais inteligente da Anthropic' },
+    'openai/gpt-4o': { name: 'GPT-4o', tier: 'premium', description: 'Modelo multimodal da OpenAI' },
+    'openai/gpt-4-turbo': { name: 'GPT-4 Turbo', tier: 'premium', description: 'Rápido e poderoso' },
+    
+    // Intermediário - Ótimo custo-benefício
+    'anthropic/claude-3-haiku': { name: 'Claude 3 Haiku', tier: 'mid', description: 'Rápido e eficiente' },
+    'openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid', description: 'Versão compacta do GPT-4o' },
+    'google/gemini-pro-1.5': { name: 'Gemini Pro 1.5', tier: 'mid', description: 'Google via OpenRouter' },
+    'meta-llama/llama-3.1-70b-instruct': { name: 'Llama 3.1 70B', tier: 'mid', description: 'Meta open source' },
+    
+    // Econômico - Para alto volume
+    'meta-llama/llama-3.1-8b-instruct': { name: 'Llama 3.1 8B', tier: 'economy', description: 'Rápido e gratuito' },
+    'mistralai/mistral-7b-instruct': { name: 'Mistral 7B', tier: 'economy', description: 'Leve e eficiente' },
+    'google/gemma-2-9b-it': { name: 'Gemma 2 9B', tier: 'economy', description: 'Google open source' },
 };
 
+// Histórico de conversação por sessão
+const conversationHistory = new Map();
+
 // Sistema de instruções dinâmico
-function buildSystemInstruction() {
+function buildSystemPrompt() {
     const memoryContext = userMemory.facts.length > 0 
         ? `\n\nMEMÓRIA DO USUÁRIO:\n${userMemory.facts.slice(-10).join('\n')}`
         : '';
@@ -111,7 +133,7 @@ PERSONALIDADE:
 - Lembra do contexto e referencia conversas anteriores
 
 REGRAS DE RESPOSTA:
-- Respostas naturais para fala (sem markdown, sem listas)
+- Respostas naturais para fala (sem markdown, sem listas, sem emojis)
 - Varie o comprimento: curtas para perguntas simples, detalhadas quando necessário
 - Use pausas naturais com vírgulas e pontos
 - Pode usar expressões como "hmm", "ah", "olha só"
@@ -127,27 +149,46 @@ IMPORTANTE: Quando o usuário compartilhar informações pessoais importantes (n
 responda naturalmente E adicione [LEMBRAR: informação] no final para eu salvar.`;
 }
 
-let cachedModel = null;
-const chatPool = new Map();
-const conversationHistory = new Map();
+// Função para chamar OpenRouter
+async function callOpenRouter(messages, model = null) {
+    const selectedModel = model || userSettings.aiModel || 'anthropic/claude-3.5-sonnet';
+    
+    console.log(`🤖 Chamando OpenRouter com modelo: ${selectedModel}`);
+    
+    try {
+        const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://aria-voice.app',
+                'X-Title': 'ARIA Voice Assistant'
+            },
+            body: JSON.stringify({
+                model: selectedModel,
+                messages: messages,
+                temperature: 0.8,
+                max_tokens: 1024,
+                top_p: 0.9,
+            })
+        });
 
-function initModel() {
-    cachedModel = genAI.getGenerativeModel({
-        ...modelConfig,
-        systemInstruction: buildSystemInstruction()
-    });
-    console.log('✅ Modelo Gemini PRO carregado');
-}
-initModel();
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('❌ Erro OpenRouter:', data);
+            throw new Error(data.error?.message || `Erro ${response.status}: ${JSON.stringify(data)}`);
+        }
 
-// Atualizar modelo quando memória mudar
-function refreshModel() {
-    cachedModel = genAI.getGenerativeModel({
-        ...modelConfig,
-        systemInstruction: buildSystemInstruction()
-    });
-    chatPool.clear(); // Limpar pool para usar novo contexto
+        console.log('✅ Resposta recebida do OpenRouter');
+        return data.choices[0].message.content;
+    } catch (error) {
+        console.error('❌ Erro na chamada OpenRouter:', error.message);
+        throw error;
+    }
 }
+
+console.log('✅ OpenRouter configurado com', Object.keys(AVAILABLE_MODELS).length, 'modelos disponíveis')
 
 // ============================================
 // PROCESSAMENTO DE TEXTO
@@ -258,19 +299,50 @@ setInterval(() => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok',
-        version: '3.0 PRO',
-        model: modelConfig.model,
+        version: '4.0 OpenRouter',
+        model: userSettings.aiModel,
+        availableModels: Object.keys(AVAILABLE_MODELS).length,
         memory: userMemory.facts.length,
         uptime: process.uptime()
     });
 });
 
-// Chat principal com streaming
+// Listar modelos disponíveis
+app.get('/api/models', (req, res) => {
+    const models = Object.entries(AVAILABLE_MODELS).map(([id, config]) => ({
+        id,
+        ...config
+    }));
+    res.json({ 
+        models,
+        current: userSettings.aiModel 
+    });
+});
+
+// Trocar modelo
+app.post('/api/model', (req, res) => {
+    const { model } = req.body;
+    if (AVAILABLE_MODELS[model]) {
+        userSettings.aiModel = model;
+        saveJSON(SETTINGS_FILE, userSettings);
+        // Limpar histórico ao trocar modelo
+        conversationHistory.clear();
+        res.json({ 
+            success: true, 
+            model: model,
+            modelInfo: AVAILABLE_MODELS[model]
+        });
+    } else {
+        res.status(400).json({ error: 'Modelo não encontrado' });
+    }
+});
+
+// Chat principal com OpenRouter
 app.post('/api/chat', async (req, res) => {
     const startTime = Date.now();
     
     try {
-        const { message, sessionId = 'default' } = req.body;
+        const { message, sessionId = 'default', model } = req.body;
 
         if (!message) {
             return res.status(400).json({ error: 'Mensagem é obrigatória' });
@@ -279,21 +351,18 @@ app.post('/api/chat', async (req, res) => {
         // Análise de sentimento
         const sentiment = analyzeSentiment(message);
 
-        // Obter ou criar chat
-        let chat = chatPool.get(sessionId);
+        // Obter histórico da sessão
+        let history = conversationHistory.get(sessionId) || [];
         
-        if (!chat) {
-            const history = conversationHistory.get(sessionId) || [];
-            chat = cachedModel.startChat({
-                history: history,
-                generationConfig: modelConfig.generationConfig,
-            });
-            chatPool.set(sessionId, chat);
-        }
+        // Construir mensagens para OpenRouter
+        const messages = [
+            { role: 'system', content: buildSystemPrompt() },
+            ...history,
+            { role: 'user', content: message }
+        ];
 
-        // Enviar mensagem
-        const result = await chat.sendMessage(message);
-        const rawText = result.response.text();
+        // Chamar OpenRouter
+        const rawText = await callOpenRouter(messages, model);
         
         // Processar resposta
         const { cleanText, memories } = extractMemories(rawText);
@@ -302,45 +371,43 @@ app.post('/api/chat', async (req, res) => {
         // Salvar memórias
         if (memories.length > 0) {
             userMemory.facts.push(...memories);
-            userMemory.facts = [...new Set(userMemory.facts)].slice(-50); // Últimas 50 únicas
-            refreshModel();
+            userMemory.facts = [...new Set(userMemory.facts)].slice(-50);
         }
 
         // Atualizar histórico
-        setImmediate(() => {
-            let history = conversationHistory.get(sessionId) || [];
-            history.push(
-                { role: 'user', parts: [{ text: message }] },
-                { role: 'model', parts: [{ text: text }] }
-            );
-            if (history.length > 20) history.splice(0, 2);
-            conversationHistory.set(sessionId, history);
+        history.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: text }
+        );
+        // Manter últimas 10 trocas (20 mensagens)
+        if (history.length > 20) history = history.slice(-20);
+        conversationHistory.set(sessionId, history);
 
-            // Salvar no log
-            conversationLogs.conversations.push({
-                timestamp: new Date().toISOString(),
-                user: message,
-                assistant: text,
-                sentiment
-            });
-            if (conversationLogs.conversations.length > 1000) {
-                conversationLogs.conversations = conversationLogs.conversations.slice(-500);
-            }
+        // Salvar no log
+        conversationLogs.conversations.push({
+            timestamp: new Date().toISOString(),
+            user: message,
+            assistant: text,
+            sentiment,
+            model: model || userSettings.aiModel
         });
+        if (conversationLogs.conversations.length > 1000) {
+            conversationLogs.conversations = conversationLogs.conversations.slice(-500);
+        }
 
         const elapsed = Date.now() - startTime;
-        console.log(`⚡ [${sentiment}] ${elapsed}ms: "${message.substring(0, 30)}..."`);
+        console.log(`⚡ [${userSettings.aiModel}] ${elapsed}ms: "${message.substring(0, 30)}..."`);
 
         res.json({ 
             response: text,
             sentiment,
             sessionId,
+            model: model || userSettings.aiModel,
             processingTime: elapsed
         });
 
     } catch (error) {
-        console.error('Erro:', error.message);
-        chatPool.delete(req.body.sessionId || 'default');
+        console.error('Erro OpenRouter:', error.message);
         res.status(500).json({ error: 'Erro ao processar', details: error.message });
     }
 });
@@ -350,7 +417,7 @@ app.post('/api/voice', async (req, res) => {
     const startTime = Date.now();
     
     try {
-        const { message, sessionId = 'default', voice } = req.body;
+        const { message, sessionId = 'default', voice, model } = req.body;
         const selectedVoice = voice || userSettings.voice;
 
         if (!message) {
@@ -359,19 +426,18 @@ app.post('/api/voice', async (req, res) => {
 
         const sentiment = analyzeSentiment(message);
 
-        let chat = chatPool.get(sessionId);
+        // Obter histórico da sessão
+        let history = conversationHistory.get(sessionId) || [];
         
-        if (!chat) {
-            const history = conversationHistory.get(sessionId) || [];
-            chat = cachedModel.startChat({
-                history: history,
-                generationConfig: modelConfig.generationConfig,
-            });
-            chatPool.set(sessionId, chat);
-        }
+        // Construir mensagens para OpenRouter
+        const messages = [
+            { role: 'system', content: buildSystemPrompt() },
+            ...history,
+            { role: 'user', content: message }
+        ];
 
-        const result = await chat.sendMessage(message);
-        const rawText = result.response.text();
+        // Chamar OpenRouter
+        const rawText = await callOpenRouter(messages, model);
         
         const { cleanText, memories } = extractMemories(rawText);
         const text = cleanMarkdown(cleanText);
@@ -379,21 +445,17 @@ app.post('/api/voice', async (req, res) => {
         if (memories.length > 0) {
             userMemory.facts.push(...memories);
             userMemory.facts = [...new Set(userMemory.facts)].slice(-50);
-            refreshModel();
         }
 
         const aiTime = Date.now() - startTime;
 
-        // Atualizar histórico em background
-        setImmediate(() => {
-            let history = conversationHistory.get(sessionId) || [];
-            history.push(
-                { role: 'user', parts: [{ text: message }] },
-                { role: 'model', parts: [{ text: text }] }
-            );
-            if (history.length > 20) history.splice(0, 2);
-            conversationHistory.set(sessionId, history);
-        });
+        // Atualizar histórico
+        history.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: text }
+        );
+        if (history.length > 20) history = history.slice(-20);
+        conversationHistory.set(sessionId, history);
 
         // Gerar áudio
         const voiceConfig = VOICES[selectedVoice] || VOICES['francisca'];
@@ -403,11 +465,12 @@ app.post('/api/voice', async (req, res) => {
 
         // Cache hit
         if (fs.existsSync(filepath)) {
-            console.log(`🎵 [${sentiment}] Cache: ${Date.now() - startTime}ms`);
+            console.log(`🎵 [${userSettings.aiModel}] Cache: ${Date.now() - startTime}ms`);
             return res.json({ 
                 response: text,
                 audioUrl: `/audio/${filename}`,
                 sentiment,
+                model: model || userSettings.aiModel,
                 cached: true,
                 processingTime: Date.now() - startTime
             });
@@ -424,12 +487,13 @@ app.post('/api/voice', async (req, res) => {
 
         tts.on('close', (code) => {
             const totalTime = Date.now() - startTime;
-            console.log(`🎵 [${sentiment}] Total: ${totalTime}ms (AI: ${aiTime}ms)`);
+            console.log(`🎵 [${userSettings.aiModel}] Total: ${totalTime}ms (AI: ${aiTime}ms)`);
             
             res.json({ 
                 response: text,
                 audioUrl: code === 0 ? `/audio/${filename}` : null,
                 sentiment,
+                model: model || userSettings.aiModel,
                 processingTime: totalTime
             });
         });
@@ -440,7 +504,6 @@ app.post('/api/voice', async (req, res) => {
 
     } catch (error) {
         console.error('Erro voice:', error.message);
-        chatPool.delete(req.body.sessionId || 'default');
         res.status(500).json({ error: 'Erro ao processar' });
     }
 });
@@ -553,7 +616,8 @@ app.post('/api/clear', (req, res) => {
     const { sessionId } = req.body;
     if (sessionId) {
         conversationHistory.delete(sessionId);
-        chatPool.delete(sessionId);
+    } else {
+        conversationHistory.clear();
     }
     res.json({ success: true });
 });
@@ -578,21 +642,24 @@ app.get('/', (req, res) => {
 // INICIAR SERVIDOR
 // ============================================
 app.listen(PORT, () => {
+    const modelInfo = AVAILABLE_MODELS[userSettings.aiModel];
+    const modelName = modelInfo?.name || userSettings.aiModel || 'Claude 3.5 Sonnet';
     console.log(`
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
-║   🎤 ARIA Voice PRO - Versão 3.0                              ║
+║   🎤 ARIA Voice PRO - Versão 4.0 (OpenRouter)                 ║
 ║                                                                ║
 ║   Servidor: http://localhost:${PORT}                            ║
-║   Modelo: ${modelConfig.model}                          ║
-║   Memória: ${userMemory.facts.length} fatos salvos                             ║
+║   Modelo: ${modelName.substring(0, 40).padEnd(40)}    ║
+║   Memória: ${String(userMemory.facts.length).padEnd(3)} fatos salvos                           ║
 ║                                                                ║
-║   Recursos PRO:                                                ║
+║   Recursos:                                                    ║
+║   ✅ OpenRouter com ${Object.keys(AVAILABLE_MODELS).length} modelos disponíveis             ║
+║   ✅ Claude 3.5 Sonnet, GPT-4o, Llama 3.1, etc.               ║
 ║   ✅ Memória persistente                                       ║
 ║   ✅ Análise de sentimento                                     ║
 ║   ✅ Múltiplas vozes neurais                                   ║
 ║   ✅ Histórico de conversas                                    ║
-║   ✅ Configurações personalizáveis                             ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
     `);
