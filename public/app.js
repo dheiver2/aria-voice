@@ -33,10 +33,12 @@ class ARIA {
     async init() {
         console.log('🚀 ARIA iniciando...');
         
-        // Detectar dispositivo móvel
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        this.isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        console.log('📱 Mobile:', this.isMobile, 'iOS:', this.isIOS);
+        // Detectar dispositivo móvel (inclui iPad moderno que se identifica como Mac)
+        const isIPadOS = navigator.maxTouchPoints > 1 && /MacIntel/.test(navigator.platform);
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || isIPadOS;
+        this.isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || isIPadOS;
+        this.isAndroid = /Android/i.test(navigator.userAgent);
+        console.log('📱 Mobile:', this.isMobile, 'iOS:', this.isIOS, 'Android:', this.isAndroid);
         
         // Elementos DOM
         this.$ = {
@@ -59,10 +61,54 @@ class ARIA {
         // Configurar reconhecimento de voz
         this.setupSpeechRecognition();
         
+        // Verificar suporte a recursos
+        this.checkBrowserSupport();
+        
         // Event listeners
         this.setupEventListeners();
         
         console.log('✅ ARIA pronta!');
+    }
+    
+    checkBrowserSupport() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            console.warn('⚠️ Speech Recognition não suportado neste navegador');
+            // Mostrar mensagem para o usuário
+            this.showNotification('Seu navegador não suporta reconhecimento de voz. Use Chrome ou Safari.');
+        }
+        
+        if (!('speechSynthesis' in window)) {
+            console.warn('⚠️ Speech Synthesis não suportado');
+        }
+        
+        console.log('🔍 Suporte: SpeechRecognition:', !!SpeechRecognition, 'SpeechSynthesis:', 'speechSynthesis' in window);
+    }
+    
+    showNotification(message) {
+        // Criar notificação temporária
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 100, 100, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
     }
     
     initAudioContext() {
@@ -435,45 +481,84 @@ class ARIA {
             // Cancelar fala anterior
             speechSynthesis.cancel();
             
+            // iOS tem bug que para TTS após ~15 segundos
+            // Dividir texto em chunks menores
+            const chunks = this.splitTextIntoChunks(text, this.isIOS ? 150 : 500);
+            console.log('🗣️ TTS: dividido em', chunks.length, 'partes');
+            
             // Aguardar vozes carregarem
-            const speak = () => {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'pt-BR';
-                
-                // Configurações para voz mais natural
-                utterance.rate = 0.95 + (this.settings.speed / 200); // Velocidade natural
-                utterance.pitch = 1.05; // Tom ligeiramente mais alto (feminino)
-                utterance.volume = 1;
-                
-                // Selecionar melhor voz feminina
-                const voice = this.getBestFemaleVoice();
-                if (voice) utterance.voice = voice;
-                
+            const speak = async () => {
                 this.state.speaking = true;
                 this.state.processing = false;
                 this.$.orb.classList.add('speaking');
                 
-                utterance.onend = () => {
-                    this.state.speaking = false;
-                    this.$.orb.classList.remove('speaking');
-                    resolve();
-                };
+                const voice = this.getBestFemaleVoice();
                 
-                utterance.onerror = () => {
-                    this.state.speaking = false;
-                    this.$.orb.classList.remove('speaking');
-                    resolve();
-                };
+                for (let i = 0; i < chunks.length; i++) {
+                    if (!this.state.speaking) break; // Interrompido
+                    
+                    await this.speakChunk(chunks[i], voice);
+                }
                 
-                speechSynthesis.speak(utterance);
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
             };
             
             // Vozes podem demorar para carregar
             if (speechSynthesis.getVoices().length === 0) {
                 speechSynthesis.onvoiceschanged = speak;
+                // Timeout caso vozes nunca carreguem
+                setTimeout(() => {
+                    if (speechSynthesis.getVoices().length === 0) {
+                        speak(); // Tentar mesmo assim
+                    }
+                }, 1000);
             } else {
                 speak();
             }
+        });
+    }
+    
+    splitTextIntoChunks(text, maxLength) {
+        const chunks = [];
+        const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+        
+        let currentChunk = '';
+        for (const sentence of sentences) {
+            if ((currentChunk + sentence).length <= maxLength) {
+                currentChunk += sentence;
+            } else {
+                if (currentChunk) chunks.push(currentChunk.trim());
+                currentChunk = sentence;
+            }
+        }
+        if (currentChunk) chunks.push(currentChunk.trim());
+        
+        return chunks.length > 0 ? chunks : [text];
+    }
+    
+    speakChunk(text, voice) {
+        return new Promise((resolve) => {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 0.95 + (this.settings.speed / 200);
+            utterance.pitch = 1.05;
+            utterance.volume = 1;
+            if (voice) utterance.voice = voice;
+            
+            utterance.onend = () => resolve();
+            utterance.onerror = () => resolve();
+            
+            // iOS workaround: resume pode ser necessário
+            if (this.isIOS) {
+                speechSynthesis.resume();
+            }
+            
+            speechSynthesis.speak(utterance);
+            
+            // Timeout de segurança (15s por chunk)
+            setTimeout(() => resolve(), 15000);
         });
     }
     
