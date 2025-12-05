@@ -207,11 +207,11 @@ class ARIA {
             
             this.$.orb.classList.remove('thinking');
             
-            // Usar TTS do navegador se servidor indicar (Vercel) ou não houver áudio
-            if (data.useBrowserTTS || !data.audioUrl) {
-                await this.speakWithBrowser(data.response);
+            // Prioridade: OpenAI TTS (base64) > Browser TTS
+            if (data.audioBase64) {
+                await this.playBase64Audio(data.audioBase64);
             } else {
-                await this.playAudio(data.audioUrl);
+                await this.speakWithBrowser(data.response);
             }
             
         } catch (error) {
@@ -222,8 +222,100 @@ class ARIA {
     }
     
     // ============================================
-    // TTS DO NAVEGADOR (fallback para Vercel)
+    // ÁUDIO OPENAI TTS (voz natural)
     // ============================================
+    
+    async playBase64Audio(base64) {
+        return new Promise((resolve) => {
+            this.state.speaking = true;
+            this.state.processing = false;
+            this.$.orb.classList.add('speaking');
+            
+            const audioData = `data:audio/mp3;base64,${base64}`;
+            this.audio.src = audioData;
+            
+            this.audio.onended = () => {
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
+            };
+            
+            this.audio.onerror = (e) => {
+                console.error('Erro ao tocar áudio:', e);
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
+            };
+            
+            this.audio.play().catch((e) => {
+                console.error('Erro play:', e);
+                this.state.speaking = false;
+                this.$.orb.classList.remove('speaking');
+                resolve();
+            });
+        });
+    }
+    
+    // ============================================
+    // TTS DO NAVEGADOR - FALLBACK
+    // ============================================
+    
+    getBestFemaleVoice() {
+        const voices = speechSynthesis.getVoices();
+        
+        // Prioridade de vozes femininas naturais em português
+        const preferredVoices = [
+            // Google (mais natural)
+            'Google português do Brasil',
+            'Google Português Brasil',
+            // Microsoft Azure Neural (muito natural)
+            'Microsoft Francisca Online (Natural)',
+            'Microsoft Thalita Online (Natural)',
+            'Francisca',
+            'Thalita',
+            // Microsoft padrão
+            'Microsoft Maria',
+            'Maria',
+            // Apple
+            'Luciana',
+            // Outras
+            'Fernanda',
+            'Vitória',
+            'Raquel'
+        ];
+        
+        // Buscar por nome preferido
+        for (const name of preferredVoices) {
+            const voice = voices.find(v => 
+                v.name.includes(name) && 
+                v.lang.startsWith('pt')
+            );
+            if (voice) {
+                console.log('🎤 Voz selecionada:', voice.name);
+                return voice;
+            }
+        }
+        
+        // Fallback: qualquer voz feminina em português
+        const ptFemale = voices.find(v => 
+            v.lang.startsWith('pt') && 
+            (v.name.toLowerCase().includes('female') || 
+             v.name.match(/maria|ana|lucia|fernanda|vitoria|raquel|francisca|thalita/i))
+        );
+        if (ptFemale) {
+            console.log('🎤 Voz fallback:', ptFemale.name);
+            return ptFemale;
+        }
+        
+        // Último fallback: qualquer voz em português
+        const ptVoice = voices.find(v => v.lang.startsWith('pt'));
+        if (ptVoice) {
+            console.log('🎤 Voz PT:', ptVoice.name);
+            return ptVoice;
+        }
+        
+        return voices[0];
+    }
     
     async speakWithBrowser(text) {
         return new Promise((resolve) => {
@@ -236,33 +328,45 @@ class ARIA {
             // Cancelar fala anterior
             speechSynthesis.cancel();
             
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'pt-BR';
-            utterance.rate = 1 + (this.settings.speed / 100);
-            utterance.pitch = 1;
-            
-            // Tentar encontrar voz em português
-            const voices = speechSynthesis.getVoices();
-            const ptVoice = voices.find(v => v.lang.startsWith('pt')) || voices[0];
-            if (ptVoice) utterance.voice = ptVoice;
-            
-            this.state.speaking = true;
-            this.state.processing = false;
-            this.$.orb.classList.add('speaking');
-            
-            utterance.onend = () => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                resolve();
+            // Aguardar vozes carregarem
+            const speak = () => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'pt-BR';
+                
+                // Configurações para voz mais natural
+                utterance.rate = 0.95 + (this.settings.speed / 200); // Velocidade natural
+                utterance.pitch = 1.05; // Tom ligeiramente mais alto (feminino)
+                utterance.volume = 1;
+                
+                // Selecionar melhor voz feminina
+                const voice = this.getBestFemaleVoice();
+                if (voice) utterance.voice = voice;
+                
+                this.state.speaking = true;
+                this.state.processing = false;
+                this.$.orb.classList.add('speaking');
+                
+                utterance.onend = () => {
+                    this.state.speaking = false;
+                    this.$.orb.classList.remove('speaking');
+                    resolve();
+                };
+                
+                utterance.onerror = () => {
+                    this.state.speaking = false;
+                    this.$.orb.classList.remove('speaking');
+                    resolve();
+                };
+                
+                speechSynthesis.speak(utterance);
             };
             
-            utterance.onerror = () => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                resolve();
-            };
-            
-            speechSynthesis.speak(utterance);
+            // Vozes podem demorar para carregar
+            if (speechSynthesis.getVoices().length === 0) {
+                speechSynthesis.onvoiceschanged = speak;
+            } else {
+                speak();
+            }
         });
     }
     

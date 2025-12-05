@@ -1,12 +1,13 @@
 /**
  * ARIA Voice - Servidor Vercel Serverless
- * Versão 5.0 - Otimizado para Vercel
+ * Versão 5.4 - TTS Ultra-Natural via ElevenLabs SDK
  */
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -14,8 +15,18 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const IS_VERCEL = process.env.VERCEL === '1';
+
+// Cliente ElevenLabs
+let elevenlabs = null;
+if (ELEVENLABS_API_KEY) {
+    elevenlabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
+}
+
+// Voz padrão - George (a do exemplo, muito natural)
+const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
 
 // ============================================
 // MIDDLEWARE
@@ -157,10 +168,55 @@ async function chat(message, sessionId, model) {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok', 
-        version: '5.0.0',
-        vercel: IS_VERCEL
+        version: '5.3.0',
+        vercel: IS_VERCEL,
+        tts: ELEVENLABS_API_KEY ? 'elevenlabs' : 'browser'
     });
 });
+
+// TTS com ElevenLabs (voz ultra-natural)
+async function generateSpeech(text) {
+    if (!ELEVENLABS_API_KEY) {
+        console.log('⚠️ ELEVENLABS_API_KEY não configurada');
+        return null;
+    }
+    
+    console.log('🎤 Gerando áudio ElevenLabs para:', text.substring(0, 50) + '...');
+    
+    try {
+        const response = await fetch(`${ELEVENLABS_TTS_URL}/${DEFAULT_VOICE_ID}`, {
+            method: 'POST',
+            headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'audio/mpeg'
+            },
+            body: JSON.stringify({
+                text: text,
+                model_id: 'eleven_multilingual_v2', // Melhor para português
+                voice_settings: {
+                    stability: 0.4,        // Menos estável = mais expressivo
+                    similarity_boost: 0.85, // Alta fidelidade à voz
+                    style: 0.7,            // Mais expressividade
+                    use_speaker_boost: true
+                }
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ ElevenLabs Error:', response.status, errorText);
+            return null;
+        }
+        
+        const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Áudio gerado:', audioBuffer.byteLength, 'bytes');
+        return Buffer.from(audioBuffer).toString('base64');
+    } catch (error) {
+        console.error('❌ ElevenLabs Error:', error.message);
+        return null;
+    }
+}
 
 // Chat principal
 app.post('/api/chat', async (req, res) => {
@@ -178,14 +234,17 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const response = await chat(message, sessionId, model || settings?.model);
+        
+        // Gerar áudio com OpenAI TTS
+        const audioBase64 = await generateSpeech(response);
+        
         const elapsed = Date.now() - start;
-
         console.log(`💬 [${elapsed}ms] "${message.substring(0, 30)}..." → "${response.substring(0, 30)}..."`);
 
         res.json({
             response,
-            audioUrl: null, // TTS não disponível na Vercel
-            useBrowserTTS: true, // Usar TTS do navegador
+            audioBase64, // Áudio em base64 (null se não disponível)
+            useBrowserTTS: !audioBase64, // Usar navegador como fallback
             time: elapsed
         });
 
