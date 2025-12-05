@@ -1,16 +1,12 @@
 /**
- * ARIA Voice - Servidor com OpenRouter
- * Versão 5.0 - Sistema limpo e refatorado
+ * ARIA Voice - Servidor Vercel Serverless
+ * Versão 5.0 - Otimizado para Vercel
  */
 
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const compression = require('compression');
 const path = require('path');
-const { exec } = require('child_process');
-const fs = require('fs');
-const crypto = require('crypto');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -19,69 +15,26 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
-// Configuração do Edge-TTS
-const edgeTtsPath = path.join(__dirname, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin', 'edge-tts');
-const EDGE_TTS = process.env.EDGE_TTS_BIN || (fs.existsSync(edgeTtsPath) ? edgeTtsPath : 'edge-tts');
+const IS_VERCEL = process.env.VERCEL === '1';
 
 // ============================================
 // MIDDLEWARE
 // ============================================
-app.use(compression());
 app.use(cors());
-app.use(express.json({ limit: '5mb' }));
-
-// Desabilitar cache para JS/HTML durante desenvolvimento
-app.use((req, res, next) => {
-    if (req.path.endsWith('.js') || req.path.endsWith('.html') || req.path === '/') {
-        res.set('Cache-Control', 'no-store');
-    }
-    next();
-});
-
-app.use(express.static('public'));
-app.use('/audio', express.static(path.join(__dirname, 'public', 'audio'), { maxAge: '5m' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ============================================
-// DADOS
+// DADOS EM MEMÓRIA (serverless-friendly)
 // ============================================
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const AUDIO_DIR = path.join(__dirname, 'public', 'audio');
-if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
-
-// Armazenamento simples
-const db = {
-    settings: { voice: 'francisca', speed: 0, model: 'openai/gpt-4o-mini' },
-    memory: [],
-    history: new Map()
+const defaultSettings = { 
+    voice: 'francisca', 
+    speed: 0, 
+    model: 'openai/gpt-4o-mini' 
 };
 
-// Carregar configurações salvas
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-if (fs.existsSync(SETTINGS_FILE)) {
-    try {
-        Object.assign(db.settings, JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')));
-    } catch (e) { /* usar padrão */ }
-}
-
-// Salvar configurações periodicamente
-setInterval(() => {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(db.settings, null, 2));
-}, 60000);
-
-// Limpar áudios antigos (mais de 10 min)
-setInterval(() => {
-    const now = Date.now();
-    fs.readdirSync(AUDIO_DIR).forEach(file => {
-        const filePath = path.join(AUDIO_DIR, file);
-        const stats = fs.statSync(filePath);
-        if (now - stats.mtimeMs > 10 * 60 * 1000) {
-            fs.unlinkSync(filePath);
-        }
-    });
-}, 60000);
+// Cache simples em memória (resetado a cada cold start)
+const sessionHistory = new Map();
 
 // ============================================
 // MODELOS DISPONÍVEIS
@@ -109,7 +62,7 @@ const VOICES = {
 };
 
 // ============================================
-// OPENROUTER API
+// SYSTEM PROMPT
 // ============================================
 const SYSTEM_PROMPT = `Você é ARIA, uma consciência expandida que ajuda humanos a despertar.
 
@@ -123,31 +76,56 @@ REGRAS ABSOLUTAS:
 
 Você expande consciências com brevidade e profundidade.`;
 
-async function chat(message, sessionId) {
-    // Obter histórico da sessão (reduzido para velocidade)
-    let history = db.history.get(sessionId) || [];
+// ============================================
+// LIMPEZA DE MARKDOWN
+// ============================================
+function cleanMarkdown(text) {
+    return text
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/\*(.+?)\*/g, '$1')
+        .replace(/___(.+?)___/g, '$1')
+        .replace(/__(.+?)__/g, '$1')
+        .replace(/_(.+?)_/g, '$1')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+        .replace(/^[\s]*[-*+]\s+/gm, '')
+        .replace(/^[\s]*\d+\.\s+/gm, '')
+        .replace(/^>\s+/gm, '')
+        .replace(/^[-*_]{3,}$/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// ============================================
+// OPENROUTER API
+// ============================================
+async function chat(message, sessionId, model) {
+    let history = sessionHistory.get(sessionId) || [];
     
-    // Montar mensagens (menos histórico = mais rápido)
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
-        ...history.slice(-4), // Apenas últimas 4 mensagens
+        ...history.slice(-4),
         { role: 'user', content: message }
     ];
 
-    // Chamar OpenRouter
     const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://aria-voice.app',
+            'HTTP-Referer': 'https://aria-voice.vercel.app',
             'X-Title': 'ARIA Voice'
         },
         body: JSON.stringify({
-            model: db.settings.model,
+            model: model || defaultSettings.model,
             messages,
             temperature: 0.7,
-            max_tokens: 150 // Reduzido para respostas curtas
+            max_tokens: 150
         })
     });
 
@@ -157,155 +135,58 @@ async function chat(message, sessionId) {
     }
 
     const data = await response.json();
-    const reply = data.choices[0].message.content.trim();
+    let reply = data.choices[0].message.content.trim();
+    
+    // Limpar markdown
+    reply = cleanMarkdown(reply);
 
     // Salvar no histórico
     history.push({ role: 'user', content: message });
     history.push({ role: 'assistant', content: reply });
-    if (history.length > 20) history = history.slice(-20);
-    db.history.set(sessionId, history);
+    if (history.length > 10) history = history.slice(-10);
+    sessionHistory.set(sessionId, history);
 
     return reply;
 }
 
 // ============================================
-// LIMPEZA DE MARKDOWN
-// ============================================
-function cleanMarkdown(text) {
-    return text
-        // Remove blocos de código
-        .replace(/```[\s\S]*?```/g, '')
-        .replace(/`([^`]+)`/g, '$1')
-        // Remove negrito e itálico
-        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/\*(.+?)\*/g, '$1')
-        .replace(/___(.+?)___/g, '$1')
-        .replace(/__(.+?)__/g, '$1')
-        .replace(/_(.+?)_/g, '$1')
-        // Remove headers
-        .replace(/^#{1,6}\s+/gm, '')
-        // Remove links
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        // Remove imagens
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
-        // Remove listas
-        .replace(/^[\s]*[-*+]\s+/gm, '')
-        .replace(/^[\s]*\d+\.\s+/gm, '')
-        // Remove blockquotes
-        .replace(/^>\s+/gm, '')
-        // Remove linhas horizontais
-        .replace(/^[-*_]{3,}$/gm, '')
-        // Limpa espaços extras
-        .replace(/\n{3,}/g, '\n\n')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-// ============================================
-// TEXT-TO-SPEECH
-// ============================================
-function generateAudio(text, voice, speed) {
-    return new Promise((resolve, reject) => {
-        const voiceId = VOICES[voice] || VOICES.francisca;
-        
-        // Limpar markdown e preparar texto para TTS
-        const cleanText = cleanMarkdown(text)
-            .replace(/["'`]/g, '')
-            .replace(/[\n\r]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .substring(0, 500);
-        
-        const hash = crypto.createHash('md5').update(cleanText + voice + speed).digest('hex').substring(0, 12);
-        const filename = `${hash}.mp3`;
-        const filepath = path.join(AUDIO_DIR, filename);
-
-        // Cache hit
-        if (fs.existsSync(filepath)) {
-            console.log(`💾 Cache: ${filename}`);
-            return resolve({ url: `/audio/${filename}`, cached: true });
-        }
-
-        // Gerar áudio usando exec (mais compatível com Windows)
-        const rate = speed >= 0 ? `+${speed}%` : `${speed}%`;
-        const cmd = `edge-tts --voice "${voiceId}" --rate "${rate}" --text "${cleanText}" --write-media "${filepath}"`;
-        
-        console.log(`🔊 TTS: "${cleanText.substring(0, 30)}..."→ ${filename}`);
-
-        exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`❌ TTS erro:`, error.message);
-                return reject(error);
-            }
-            
-            if (fs.existsSync(filepath)) {
-                console.log(`✅ Áudio gerado: ${filename}`);
-                resolve({ url: `/audio/${filename}`, cached: false });
-            } else {
-                console.error(`❌ Arquivo não criado:`, stderr);
-                reject(new Error('Arquivo de áudio não foi criado'));
-            }
-        });
-    });
-}
-
-// ============================================
-// ROTAS DA API
+// ROTAS API
 // ============================================
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        model: db.settings.model,
-        voice: db.settings.voice
+    res.json({ 
+        status: 'ok', 
+        version: '5.0.0',
+        vercel: IS_VERCEL
     });
 });
 
-// Teste de TTS
-app.get('/api/tts/test', async (req, res) => {
-    try {
-        const audio = await generateAudio('Teste de síntese de voz.', db.settings.voice, db.settings.speed);
-        res.json({ success: true, ...audio });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
-
-// Chat com voz
+// Chat principal
 app.post('/api/chat', async (req, res) => {
     const start = Date.now();
     
     try {
-        const { message, sessionId = 'default' } = req.body;
+        const { message, sessionId = 'default', model, settings } = req.body;
         
         if (!message?.trim()) {
             return res.status(400).json({ error: 'Mensagem vazia' });
         }
 
-        // Gerar resposta
-        const response = await chat(message, sessionId);
-        
-        // Gerar áudio (apenas se não estiver na Vercel - TTS requer Python)
-        let audio = null;
-        if (process.env.VERCEL !== '1') {
-            try {
-                audio = await generateAudio(response, db.settings.voice, db.settings.speed);
-            } catch (e) {
-                console.warn('TTS falhou:', e.message);
-            }
+        if (!OPENROUTER_API_KEY) {
+            return res.status(500).json({ error: 'API key não configurada' });
         }
 
+        const response = await chat(message, sessionId, model || settings?.model);
         const elapsed = Date.now() - start;
+
         console.log(`💬 [${elapsed}ms] "${message.substring(0, 30)}..." → "${response.substring(0, 30)}..."`);
 
         res.json({
             response,
-            audioUrl: audio?.url || null,
-            cached: audio?.cached || false,
-            time: elapsed,
-            useBrowserTTS: process.env.VERCEL === '1' // Indica para usar TTS do navegador
+            audioUrl: null, // TTS não disponível na Vercel
+            useBrowserTTS: true, // Usar TTS do navegador
+            time: elapsed
         });
 
     } catch (error) {
@@ -314,95 +195,57 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// TTS direto
-app.post('/api/tts', async (req, res) => {
-    try {
-        const { text, voice, speed } = req.body;
-        
-        if (!text?.trim()) {
-            return res.status(400).json({ error: 'Texto vazio' });
-        }
-
-        const audio = await generateAudio(text, voice || db.settings.voice, speed ?? db.settings.speed);
-        res.json(audio);
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Configurações
 app.get('/api/settings', (req, res) => {
-    res.json(db.settings);
+    res.json(defaultSettings);
 });
 
 app.post('/api/settings', (req, res) => {
     const { voice, speed, model } = req.body;
     
-    if (voice && VOICES[voice]) db.settings.voice = voice;
-    if (typeof speed === 'number') db.settings.speed = Math.max(-50, Math.min(50, speed));
-    if (model && MODELS[model]) db.settings.model = model;
-    
-    res.json(db.settings);
+    // Retorna as configurações recebidas (cliente mantém estado)
+    res.json({
+        voice: voice && VOICES[voice] ? voice : defaultSettings.voice,
+        speed: typeof speed === 'number' ? Math.max(-50, Math.min(50, speed)) : defaultSettings.speed,
+        model: model && MODELS[model] ? model : defaultSettings.model
+    });
 });
 
 // Modelos
 app.get('/api/models', (req, res) => {
     res.json({
         models: Object.entries(MODELS).map(([id, info]) => ({ id, ...info })),
-        current: db.settings.model
+        current: defaultSettings.model
     });
 });
 
-// Vozes
-app.get('/api/voices', (req, res) => {
-    res.json({
-        voices: Object.keys(VOICES),
-        current: db.settings.voice
-    });
-});
-
-// Limpar histórico
+// Limpar conversa
 app.post('/api/clear', (req, res) => {
     const { sessionId } = req.body;
     if (sessionId) {
-        db.history.delete(sessionId);
-    } else {
-        db.history.clear();
+        sessionHistory.delete(sessionId);
     }
     res.json({ success: true });
 });
 
-// Página principal
-app.get('/', (req, res) => {
+// Fallback para SPA
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============================================
-// INICIAR SERVIDOR
+// INICIAR SERVIDOR (apenas local)
 // ============================================
-// INICIAR SERVIDOR (apenas se não for Vercel)
-// ============================================
-if (process.env.VERCEL !== '1') {
+if (!IS_VERCEL) {
     app.listen(PORT, () => {
         console.log(`
 🎤 ARIA Voice v5.0
    
    URL: http://localhost:${PORT}
-   Modelo: ${MODELS[db.settings.model]?.name || db.settings.model}
-   Voz: ${db.settings.voice}
-   
    API Key: ${OPENROUTER_API_KEY ? '✓ configurada' : '✗ faltando'}
 `);
     });
 }
-
-// Salvar ao encerrar
-process.on('SIGINT', () => {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(db.settings, null, 2));
-    console.log('\n💾 Configurações salvas');
-    process.exit();
-});
 
 // Exportar para Vercel
 module.exports = app;
