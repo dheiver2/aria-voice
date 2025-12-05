@@ -722,13 +722,22 @@ class ARIAVoicePRO {
         });
         
         // Settings panel
-        this.elements.settingsBtn.addEventListener('click', () => {
-            this.elements.settingsPanel.classList.add('open');
-        });
+        if (this.elements.settingsBtn) {
+            this.elements.settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log('⚙️ Abrindo configurações...');
+                this.elements.settingsPanel.classList.add('open');
+            });
+        } else {
+            console.error('❌ Botão de configurações não encontrado!');
+        }
         
-        this.elements.closeSettings.addEventListener('click', () => {
-            this.elements.settingsPanel.classList.remove('open');
-        });
+        if (this.elements.closeSettings) {
+            this.elements.closeSettings.addEventListener('click', () => {
+                console.log('❌ Fechando configurações...');
+                this.elements.settingsPanel.classList.remove('open');
+            });
+        }
         
         // Voice select
         this.elements.voiceSelect.addEventListener('change', (e) => {
@@ -802,6 +811,190 @@ class ARIAVoicePRO {
                 this.elements.settingsPanel.classList.remove('open');
             }
         });
+        
+        // Botão de diagnóstico
+        const diagBtn = document.getElementById('runDiagnostic');
+        if (diagBtn) {
+            diagBtn.addEventListener('click', () => this.runDiagnostic());
+        }
+        
+        // Botão de teste de voz
+        const testBtn = document.getElementById('testVoice');
+        if (testBtn) {
+            testBtn.addEventListener('click', () => this.testFullVoice());
+        }
+    }
+    
+    // ============================================
+    // DIAGNÓSTICO DO SISTEMA
+    // ============================================
+    
+    async runDiagnostic() {
+        console.log('🔧 Iniciando diagnóstico...');
+        
+        // Reset all items
+        document.querySelectorAll('.diagnostic-item').forEach(item => {
+            item.className = 'diagnostic-item';
+            item.querySelector('.diag-icon').textContent = '⏳';
+            item.querySelector('.diag-status').textContent = 'Verificando...';
+        });
+        
+        // 1. Verificar servidor
+        await this.checkServer();
+        
+        // 2. Verificar API OpenRouter
+        await this.checkAPI();
+        
+        // 3. Verificar TTS
+        await this.checkTTS();
+        
+        // 4. Verificar microfone
+        await this.checkMicrophone();
+        
+        // 5. Verificar reconhecimento de voz
+        await this.checkSpeechRecognition();
+        
+        // 6. Verificar reprodução de áudio
+        await this.checkAudioPlayback();
+        
+        console.log('✅ Diagnóstico concluído!');
+    }
+    
+    updateDiagItem(id, status, message) {
+        const item = document.getElementById(id);
+        if (!item) return;
+        
+        item.className = 'diagnostic-item ' + status;
+        const icon = item.querySelector('.diag-icon');
+        const statusEl = item.querySelector('.diag-status');
+        
+        if (status === 'success') {
+            icon.textContent = '✅';
+        } else if (status === 'error') {
+            icon.textContent = '❌';
+        } else if (status === 'warning') {
+            icon.textContent = '⚠️';
+        }
+        
+        statusEl.textContent = message;
+    }
+    
+    async checkServer() {
+        try {
+            const res = await fetch('/api/health', { timeout: 5000 });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                this.updateDiagItem('diag-server', 'success', `Online (${Math.round(data.uptime)}s)`);
+            } else {
+                this.updateDiagItem('diag-server', 'error', 'Resposta inválida');
+            }
+        } catch (e) {
+            this.updateDiagItem('diag-server', 'error', 'Offline');
+        }
+    }
+    
+    async checkAPI() {
+        try {
+            const res = await fetch('/api/models');
+            const data = await res.json();
+            if (data.models && data.models.length > 0) {
+                this.updateDiagItem('diag-api', 'success', `${data.models.length} modelos`);
+            } else {
+                this.updateDiagItem('diag-api', 'error', 'Sem modelos');
+            }
+        } catch (e) {
+            this.updateDiagItem('diag-api', 'error', 'Falha na conexão');
+        }
+    }
+    
+    async checkTTS() {
+        try {
+            const res = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: 'teste' })
+            });
+            const data = await res.json();
+            if (data.audioUrl) {
+                this.updateDiagItem('diag-tts', 'success', 'Funcionando');
+            } else {
+                this.updateDiagItem('diag-tts', 'error', 'Sem áudio gerado');
+            }
+        } catch (e) {
+            this.updateDiagItem('diag-tts', 'error', 'Edge-TTS falhou');
+        }
+    }
+    
+    async checkMicrophone() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            this.updateDiagItem('diag-mic', 'success', 'Permitido');
+        } catch (e) {
+            if (e.name === 'NotAllowedError') {
+                this.updateDiagItem('diag-mic', 'error', 'Bloqueado');
+            } else if (e.name === 'NotFoundError') {
+                this.updateDiagItem('diag-mic', 'error', 'Não encontrado');
+            } else {
+                this.updateDiagItem('diag-mic', 'error', e.message);
+            }
+        }
+    }
+    
+    async checkSpeechRecognition() {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            if (this.recognition) {
+                this.updateDiagItem('diag-speech', 'success', 'Disponível');
+            } else {
+                this.updateDiagItem('diag-speech', 'warning', 'Não inicializado');
+            }
+        } else {
+            this.updateDiagItem('diag-speech', 'error', 'Não suportado');
+        }
+    }
+    
+    async checkAudioPlayback() {
+        try {
+            const audio = this.elements.audioPlayer;
+            if (audio && audio.canPlayType('audio/mpeg')) {
+                this.updateDiagItem('diag-audio', 'success', 'MP3 suportado');
+            } else {
+                this.updateDiagItem('diag-audio', 'warning', 'Verificar formato');
+            }
+        } catch (e) {
+            this.updateDiagItem('diag-audio', 'error', 'Falha');
+        }
+    }
+    
+    async testFullVoice() {
+        console.log('🎤 Testando fluxo completo de voz...');
+        
+        try {
+            // 1. Chamar API com mensagem de teste
+            const res = await fetch('/api/voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: 'Olá, este é um teste do sistema de voz.',
+                    sessionId: 'test_' + Date.now()
+                })
+            });
+            
+            const data = await res.json();
+            console.log('📡 Resposta da API:', data);
+            
+            if (data.audioUrl) {
+                console.log('🔊 Reproduzindo áudio:', data.audioUrl);
+                this.state.lastAudioUrl = data.audioUrl;
+                await this.playAudio(data.audioUrl);
+                alert('✅ Teste completo! Se você ouviu a resposta, o sistema está funcionando.');
+            } else {
+                alert('⚠️ API respondeu mas sem áudio.\nResposta: ' + data.response);
+            }
+        } catch (e) {
+            console.error('❌ Erro no teste:', e);
+            alert('❌ Erro no teste: ' + e.message);
+        }
     }
 }
 

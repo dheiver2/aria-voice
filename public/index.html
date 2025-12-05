@@ -149,6 +149,49 @@
                     </div>
                     <div class="memory-list" id="memoryList"></div>
                 </div>
+                
+                <!-- Diagnóstico do Sistema -->
+                <div class="setting-group" style="border-top: 1px solid var(--glass-border); padding-top: 20px; margin-top: 20px;">
+                    <label>🔧 Diagnóstico do Sistema</label>
+                    <div id="diagnosticPanel" class="diagnostic-panel">
+                        <div class="diagnostic-item" id="diag-server">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">Servidor Backend</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                        <div class="diagnostic-item" id="diag-api">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">API OpenRouter</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                        <div class="diagnostic-item" id="diag-tts">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">Síntese de Voz (TTS)</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                        <div class="diagnostic-item" id="diag-mic">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">Microfone</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                        <div class="diagnostic-item" id="diag-speech">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">Reconhecimento de Voz</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                        <div class="diagnostic-item" id="diag-audio">
+                            <span class="diag-icon">⏳</span>
+                            <span class="diag-label">Reprodução de Áudio</span>
+                            <span class="diag-status">Verificando...</span>
+                        </div>
+                    </div>
+                    <button class="diagnostic-btn" id="runDiagnostic" style="width: 100%; margin-top: 12px; padding: 12px; background: var(--primary); border: none; border-radius: 8px; color: #000; font-weight: 600; cursor: pointer;">
+                        🔄 Executar Diagnóstico
+                    </button>
+                    <button class="diagnostic-btn" id="testVoice" style="width: 100%; margin-top: 8px; padding: 12px; background: var(--glass); border: 1px solid var(--primary); border-radius: 8px; color: var(--primary); font-weight: 600; cursor: pointer;">
+                        🎤 Testar Voz Completo
+                    </button>
+                </div>
             </div>
         </div>
     </div>
