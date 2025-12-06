@@ -1320,6 +1320,17 @@
                 height: 100px;
             }
             
+            #historyBtn {
+                top: 50%;
+                left: max(0.5rem, env(safe-area-inset-left));
+            }
+            
+            #themeBtn, #settingsBtn {
+                top: max(0.5rem, env(safe-area-inset-top));
+                width: 36px;
+                height: 36px;
+            }
+            
             .orbital-system {
                 display: none;
             }
@@ -1598,8 +1609,8 @@
         ======================================== */
         #themeBtn {
             position: fixed;
-            right: 4.5rem;
-            top: 1.5rem;
+            right: calc(4rem + max(1rem, env(safe-area-inset-right)));
+            top: max(1rem, calc(1rem + env(safe-area-inset-top)));
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -1611,7 +1622,7 @@
             align-items: center;
             justify-content: center;
             transition: all var(--transition-normal);
-            z-index: 100;
+            z-index: 99;
         }
         
         #themeBtn:hover {
@@ -1692,21 +1703,48 @@
             }
             
             #historyBtn {
-                left: 0.5rem;
-                width: 38px;
-                height: 38px;
+                left: max(0.5rem, env(safe-area-inset-left));
+                top: 50%;
+                width: 40px;
+                height: 40px;
             }
             
             #themeBtn {
-                right: 3.5rem;
+                right: calc(3.5rem + max(0.5rem, env(safe-area-inset-right)));
                 top: max(1rem, env(safe-area-inset-top));
                 width: 36px;
                 height: 36px;
             }
             
+            #settingsBtn {
+                width: 42px;
+                height: 42px;
+            }
+            
             .shortcuts-popup {
                 width: calc(100% - 2rem);
                 min-width: auto;
+            }
+            
+            /* Esconder dica de teclado no mobile */
+            .bottom-hint .hint-key {
+                display: none;
+            }
+            
+            .bottom-hint .hint-text {
+                font-size: 0.7rem;
+            }
+        }
+        
+        /* Touch devices - esconder elementos de teclado */
+        @media (hover: none) and (pointer: coarse) {
+            .hint-key,
+            .hint-desktop {
+                display: none;
+            }
+            
+            .shortcuts-popup {
+                display: none !important;
             }
         }
     </style>
@@ -1958,7 +1996,7 @@
     <!-- Dica inferior -->
     <div class="bottom-hint">
         <div class="hint-icon"></div>
-        <span class="hint-text">Toque no orbe ou pressione<span class="hint-key">Espaço</span></span>
+        <span class="hint-text"><span class="hint-touch">Toque no orbe</span><span class="hint-desktop"> ou pressione<span class="hint-key">Espaço</span></span></span>
     </div>
     
     <script src="/app.js"></script>
