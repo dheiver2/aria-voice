@@ -76,7 +76,9 @@ class ARIA {
         if (!SpeechRecognition) {
             console.warn('⚠️ Speech Recognition não suportado neste navegador');
             // Mostrar mensagem para o usuário
-            this.showNotification('Seu navegador não suporta reconhecimento de voz. Use Chrome ou Safari.');
+            this.showNotification('Seu navegador não suporta reconhecimento de voz. Use o campo de texto abaixo.');
+            // Mostrar input de texto como fallback
+            this.showTextInputFallback();
         }
         
         if (!('speechSynthesis' in window)) {
@@ -84,6 +86,42 @@ class ARIA {
         }
         
         console.log('🔍 Suporte: SpeechRecognition:', !!SpeechRecognition, 'SpeechSynthesis:', 'speechSynthesis' in window);
+    }
+    
+    // Fallback de input de texto para navegadores sem reconhecimento de voz (Firefox)
+    showTextInputFallback() {
+        const container = document.querySelector('.orb-container');
+        if (!container || document.getElementById('textInputFallback')) return;
+        
+        const inputWrapper = document.createElement('div');
+        inputWrapper.id = 'textInputFallback';
+        inputWrapper.className = 'text-input-fallback';
+        inputWrapper.innerHTML = `
+            <input type="text" id="textInput" placeholder="Digite sua mensagem..." autocomplete="off" />
+            <button id="sendTextBtn" aria-label="Enviar mensagem">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                </svg>
+            </button>
+        `;
+        
+        container.appendChild(inputWrapper);
+        
+        const input = document.getElementById('textInput');
+        const btn = document.getElementById('sendTextBtn');
+        
+        const sendMessage = () => {
+            const text = input.value.trim();
+            if (text && !this.state.processing && !this.state.speaking) {
+                this.sendMessage(text);
+                input.value = '';
+            }
+        };
+        
+        btn.addEventListener('click', sendMessage);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
     }
     
     showNotification(message) {
@@ -597,6 +635,12 @@ class ARIA {
     stopAudio() {
         this.audio.pause();
         this.audio.currentTime = 0;
+        
+        // Parar TTS do navegador também
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+        }
+        
         this.state.speaking = false;
         this.$.orb.classList.remove('speaking');
     }
