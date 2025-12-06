@@ -247,12 +247,13 @@ class ARIA {
             if (result.isFinal) {
                 this.processTranscript();
             } else {
-                // Processar após 0.8s de silêncio (mais rápido)
+                // Processar após silêncio (mais tempo no mobile para conexões lentas)
+                const timeout = this.isMobile ? 1200 : 800;
                 this.speechTimeout = setTimeout(() => {
                     if (this.transcript && this.state.listening) {
                         this.processTranscript();
                     }
-                }, 800);
+                }, timeout);
             }
         };
         
@@ -383,14 +384,6 @@ class ARIA {
             this.state.speaking = true;
             this.state.processing = false;
             this.$.orb.classList.add('speaking');
-            
-            // No iOS, usar TTS do navegador diretamente (mais confiável)
-            if (this.isIOS) {
-                console.log('📱 iOS detectado, usando TTS do navegador');
-                await this.speakWithBrowser(this.lastResponse || '');
-                resolve();
-                return;
-            }
             
             // Sempre criar novo Audio
             const audio = new Audio();
@@ -652,6 +645,11 @@ class ARIA {
     setupEventListeners() {
         // Clique no orb
         this.$.orb.addEventListener('click', () => {
+            // Haptic feedback para mobile
+            if (this.isMobile && navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+            
             if (this.state.speaking) {
                 this.stopAudio();
             } else if (this.state.listening) {
