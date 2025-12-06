@@ -124,7 +124,7 @@ async function chat(message, sessionId, model) {
     
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
-        ...history.slice(-4),
+        ...history.slice(-8), // Manter últimas 8 mensagens (4 turnos) para contexto fluido
         { role: 'user', content: message }
     ];
 
@@ -155,10 +155,10 @@ async function chat(message, sessionId, model) {
     // Limpar markdown
     reply = cleanMarkdown(reply);
 
-    // Salvar no histórico
+    // Salvar no histórico (manter até 16 mensagens = 8 turnos)
     history.push({ role: 'user', content: message });
     history.push({ role: 'assistant', content: reply });
-    if (history.length > 10) history = history.slice(-10);
+    if (history.length > 16) history = history.slice(-16);
     sessionHistory.set(sessionId, history);
 
     return reply;

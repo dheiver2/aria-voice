@@ -9,13 +9,15 @@ class ARIA {
             listening: false,
             processing: false,
             speaking: false,
-            sessionId: `session_${Date.now()}`
+            sessionId: `session_${Date.now()}`,
+            continuousMode: false // Modo conversação contínua
         };
         
         this.settings = {
             voice: 'francisca',
             speed: 0,
-            model: 'openai/gpt-4o-mini'
+            model: 'openai/gpt-4o-mini',
+            autoListen: true // Reiniciar escuta após resposta
         };
         
         this.recognition = null;
@@ -124,29 +126,58 @@ class ARIA {
         });
     }
     
-    showNotification(message) {
+    showNotification(message, type = 'error') {
+        // Cores por tipo
+        const colors = {
+            error: 'rgba(255, 100, 100, 0.9)',
+            info: 'rgba(0, 200, 255, 0.9)',
+            success: 'rgba(0, 255, 136, 0.9)'
+        };
+        
+        // Remover notificação anterior se existir
+        const existing = document.getElementById('ariaNotification');
+        if (existing) existing.remove();
+        
         // Criar notificação temporária
         const notification = document.createElement('div');
+        notification.id = 'ariaNotification';
         notification.style.cssText = `
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 100, 100, 0.9);
+            background: ${colors[type] || colors.info};
             color: white;
             padding: 12px 24px;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 14px;
             z-index: 10000;
-            animation: fadeIn 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
         `;
         notification.textContent = message;
+        
+        // Adicionar keyframe se não existir
+        if (!document.getElementById('notificationKeyframes')) {
+            const style = document.createElement('style');
+            style.id = 'notificationKeyframes';
+            style.textContent = `
+                @keyframes slideUp {
+                    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
         document.body.appendChild(notification);
         
         setTimeout(() => {
             notification.style.opacity = '0';
+            notification.style.transform = 'translateX(-50%) translateY(20px)';
+            notification.style.transition = 'all 0.3s ease';
             setTimeout(() => notification.remove(), 300);
-        }, 5000);
+        }, 3000);
     }
     
     initAudioContext() {
@@ -160,20 +191,38 @@ class ARIA {
     
     async unlockAudio() {
         // Desbloquear áudio no iOS/Android após toque
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
-            console.log('🔓 AudioContext desbloqueado');
-        }
-        
-        // Tocar um som silencioso para desbloquear
-        const silentAudio = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+9DEAAAIAANIAAAAgAAA0gAAABBHx0jgQCAIAgDCgIAgCHf5QOD4Pg+D4nB8HxOD4nB8Hw+JwfB8HwfB/yg+D4Ph8TlAQBAEO/ygIAgOhQiouE4IBgGAYBgGAQCg+D7/B9/5QEO/5QEO/6EAEAv//tQxAkAAADSAAAAAAAAANIAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQJgAAA0gAAAAAA0gAAAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
-        silentAudio.volume = 0.01;
         try {
+            // 1. Resumir AudioContext
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+                console.log('🔓 AudioContext desbloqueado');
+            }
+            
+            // 2. Criar e tocar um buffer silencioso via Web Audio API (mais confiável no iOS)
+            if (this.audioContext) {
+                const buffer = this.audioContext.createBuffer(1, 1, 22050);
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(this.audioContext.destination);
+                source.start(0);
+            }
+            
+            // 3. Tocar um som silencioso via Audio element
+            const silentAudio = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+9DEAAAIAANIAAAAgAAA0gAAABBHx0jgQCAIAgDCgIAgCHf5QOD4Pg+D4nB8HxOD4nB8Hw+JwfB8HwfB/yg+D4Ph8TlAQBAEO/ygIAgOhQiouE4IBgGAYBgGAQCg+D7/B9/5QEO/5QEO/6EAEAv//tQxAkAAADSAAAAAAAAANIAAAAASAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQJgAAA0gAAAAAA0gAAAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+            silentAudio.volume = 0.01;
+            silentAudio.setAttribute('playsinline', 'true');
             await silentAudio.play();
             silentAudio.pause();
-            console.log('🔓 Áudio desbloqueado');
+            
+            // 4. Carregar vozes de TTS (iOS precisa disso cedo)
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices();
+            }
+            
+            this.audioUnlocked = true;
+            console.log('🔓 Áudio completamente desbloqueado');
         } catch (e) {
-            console.log('⚠️ Não foi possível desbloquear áudio:', e.message);
+            console.log('⚠️ Erro ao desbloquear áudio:', e.message);
         }
     }
     
@@ -241,6 +290,9 @@ class ARIA {
             const result = event.results[event.results.length - 1];
             this.transcript = result[0].transcript.trim();
             
+            // Mostrar texto em tempo real
+            this.showTranscript(this.transcript, !result.isFinal);
+            
             // Limpar timeout anterior
             if (this.speechTimeout) clearTimeout(this.speechTimeout);
             
@@ -263,9 +315,31 @@ class ARIA {
         };
         
         this.recognition.onerror = (event) => {
-            if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                console.warn('Erro:', event.error);
+            console.warn('🎙️ Erro reconhecimento:', event.error);
+            
+            // Tratar erros específicos
+            switch (event.error) {
+                case 'not-allowed':
+                    this.showNotification('Permita o acesso ao microfone nas configurações do navegador', 'error');
+                    this.showTextInputFallback();
+                    break;
+                case 'network':
+                    this.showNotification('Erro de conexão. Verifique sua internet.', 'error');
+                    break;
+                case 'audio-capture':
+                    this.showNotification('Microfone não encontrado ou em uso', 'error');
+                    this.showTextInputFallback();
+                    break;
+                case 'no-speech':
+                case 'aborted':
+                    // Silencioso - normal
+                    break;
+                default:
+                    if (this.isMobile) {
+                        this.showNotification('Toque novamente para falar', 'info');
+                    }
             }
+            
             this.state.listening = false;
             this.$.orb.classList.remove('listening');
         };
@@ -276,8 +350,132 @@ class ARIA {
         
         const text = this.transcript;
         this.transcript = '';
+        this.hideTranscript();
         this.stopListening();
         this.sendMessage(text);
+    }
+    
+    // Mostrar texto transcrito em tempo real
+    showTranscript(text, isInterim = false) {
+        let el = document.getElementById('liveTranscript');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'liveTranscript';
+            el.style.cssText = `
+                position: fixed;
+                bottom: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: ${isInterim ? 'rgba(255,255,255,0.6)' : '#00f5ff'};
+                padding: 12px 24px;
+                border-radius: 20px;
+                font-size: 16px;
+                max-width: 80%;
+                text-align: center;
+                z-index: 1000;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(0, 245, 255, 0.3);
+                transition: opacity 0.2s;
+            `;
+            document.body.appendChild(el);
+        }
+        el.textContent = text;
+        el.style.color = isInterim ? 'rgba(255,255,255,0.6)' : '#00f5ff';
+        el.style.opacity = '1';
+    }
+    
+    hideTranscript() {
+        const el = document.getElementById('liveTranscript');
+        if (el) {
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 200);
+        }
+    }
+    
+    // Mostrar resposta da ARIA brevemente
+    showResponse(text) {
+        let el = document.getElementById('ariaResponse');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'ariaResponse';
+            el.style.cssText = `
+                position: fixed;
+                top: 100px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, rgba(0, 245, 255, 0.1), rgba(255, 0, 255, 0.1));
+                color: #fff;
+                padding: 16px 28px;
+                border-radius: 16px;
+                font-size: 15px;
+                max-width: 85%;
+                text-align: center;
+                z-index: 1000;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(0, 245, 255, 0.2);
+                line-height: 1.5;
+                opacity: 0;
+                transition: opacity 0.3s;
+            `;
+            document.body.appendChild(el);
+        }
+        
+        // Limitar texto para exibição
+        const displayText = text.length > 200 ? text.substring(0, 200) + '...' : text;
+        el.textContent = displayText;
+        el.style.opacity = '1';
+        
+        // Esconder após 5 segundos
+        setTimeout(() => {
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 300);
+        }, 5000);
+    }
+    
+    // Mostrar indicador de pronto para ouvir
+    showReadyIndicator() {
+        let el = document.getElementById('readyIndicator');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'readyIndicator';
+            el.style.cssText = `
+                position: fixed;
+                bottom: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 255, 136, 0.2);
+                color: #00ff88;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 13px;
+                z-index: 1000;
+                border: 1px solid rgba(0, 255, 136, 0.3);
+                animation: pulse-ready 1.5s ease-in-out infinite;
+            `;
+            document.body.appendChild(el);
+            
+            // Adicionar keyframe se não existir
+            if (!document.getElementById('readyKeyframes')) {
+                const style = document.createElement('style');
+                style.id = 'readyKeyframes';
+                style.textContent = `
+                    @keyframes pulse-ready {
+                        0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+                        50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+        el.textContent = '🎤 Pode falar...';
+        
+        // Esconder após 3 segundos
+        setTimeout(() => {
+            if (el && el.parentNode) {
+                el.remove();
+            }
+        }, 3000);
     }
     
     async startListening() {
@@ -288,10 +486,30 @@ class ARIA {
             await this.unlockAudio();
         }
         
+        // Verificar permissão de microfone primeiro (se API disponível)
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const result = await navigator.permissions.query({ name: 'microphone' });
+                if (result.state === 'denied') {
+                    this.showNotification('Microfone bloqueado. Permita nas configurações.', 'error');
+                    this.showTextInputFallback();
+                    return;
+                }
+            } catch (e) {
+                // API não suportada, continuar normalmente
+            }
+        }
+        
         try {
             this.recognition.start();
+            console.log('🎙️ Reconhecimento iniciado');
         } catch (e) {
-            // Já está ouvindo
+            if (e.name === 'InvalidStateError') {
+                // Já está ouvindo, ignorar
+            } else {
+                console.error('❌ Erro ao iniciar reconhecimento:', e);
+                this.showNotification('Erro ao acessar microfone', 'error');
+            }
         }
     }
     
@@ -350,6 +568,9 @@ class ARIA {
             // Salvar resposta para fallback
             this.lastResponse = data.response;
             
+            // Mostrar resposta brevemente
+            this.showResponse(data.response);
+            
             this.$.orb.classList.remove('thinking');
             
             // Prioridade: ElevenLabs TTS (base64) > Browser TTS
@@ -359,6 +580,17 @@ class ARIA {
             } else {
                 console.log('🗣️ Usando TTS do navegador');
                 await this.speakWithBrowser(data.response);
+            }
+            
+            // Reiniciar escuta automaticamente se autoListen ativo
+            if (this.settings.autoListen && !this.state.speaking) {
+                setTimeout(() => {
+                    if (!this.state.speaking && !this.state.processing) {
+                        this.showReadyIndicator();
+                        // Iniciar escuta automaticamente após delay
+                        setTimeout(() => this.startListening(), 500);
+                    }
+                }, 300);
             }
             
         } catch (error) {
@@ -385,8 +617,18 @@ class ARIA {
             this.state.processing = false;
             this.$.orb.classList.add('speaking');
             
+            // No iOS, usar TTS nativo se áudio não foi desbloqueado
+            if (this.isIOS && !this.audioUnlocked) {
+                console.log('📱 iOS sem áudio desbloqueado, usando TTS');
+                await this.speakWithBrowser(this.lastResponse || '');
+                resolve();
+                return;
+            }
+            
             // Sempre criar novo Audio
             const audio = new Audio();
+            audio.setAttribute('playsinline', 'true'); // Importante para iOS
+            audio.setAttribute('webkit-playsinline', 'true');
             
             // Converter base64 para blob
             try {
@@ -578,18 +820,46 @@ class ARIA {
             utterance.volume = 1;
             if (voice) utterance.voice = voice;
             
-            utterance.onend = () => resolve();
-            utterance.onerror = () => resolve();
+            let resolved = false;
+            const finish = () => {
+                if (!resolved) {
+                    resolved = true;
+                    resolve();
+                }
+            };
             
-            // iOS workaround: resume pode ser necessário
+            utterance.onend = finish;
+            utterance.onerror = (e) => {
+                console.warn('🗣️ TTS erro:', e.error);
+                finish();
+            };
+            
+            // iOS workarounds
             if (this.isIOS) {
+                // Resume pode ser necessário
                 speechSynthesis.resume();
+                
+                // iOS para TTS quando tela bloqueia - manter ativo
+                const keepAlive = setInterval(() => {
+                    if (speechSynthesis.speaking) {
+                        speechSynthesis.resume();
+                    } else {
+                        clearInterval(keepAlive);
+                    }
+                }, 5000);
+                
+                // Limpar interval quando terminar
+                utterance.onend = () => {
+                    clearInterval(keepAlive);
+                    finish();
+                };
             }
             
             speechSynthesis.speak(utterance);
             
-            // Timeout de segurança (15s por chunk)
-            setTimeout(() => resolve(), 15000);
+            // Timeout de segurança (20s por chunk no mobile, 15s desktop)
+            const timeout = this.isMobile ? 20000 : 15000;
+            setTimeout(finish, timeout);
         });
     }
     
@@ -660,7 +930,8 @@ class ARIA {
         });
         
         // Configurações
-        this.$.settingsBtn?.addEventListener('click', () => {
+        this.$.settingsBtn?.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar que o clique feche o painel imediatamente
             this.$.settingsPanel.classList.toggle('open');
         });
         
@@ -668,7 +939,7 @@ class ARIA {
         document.addEventListener('click', (e) => {
             if (this.$.settingsPanel?.classList.contains('open') &&
                 !this.$.settingsPanel.contains(e.target) &&
-                e.target !== this.$.settingsBtn) {
+                !this.$.settingsBtn?.contains(e.target)) {
                 this.$.settingsPanel.classList.remove('open');
             }
         });
@@ -691,6 +962,20 @@ class ARIA {
             this.settings.model = e.target.value;
             this.saveSettings();
         });
+        
+        // Toggle escuta automática
+        const autoListenToggle = document.getElementById('autoListenToggle');
+        if (autoListenToggle) {
+            autoListenToggle.checked = this.settings.autoListen;
+            autoListenToggle.addEventListener('change', (e) => {
+                this.settings.autoListen = e.target.checked;
+                this.saveSettings();
+                
+                // Feedback visual
+                const status = e.target.checked ? 'Escuta contínua ativada' : 'Escuta contínua desativada';
+                this.showNotification(status, 'info');
+            });
+        }
         
         // Limpar conversa
         this.$.clearBtn?.addEventListener('click', async () => {
