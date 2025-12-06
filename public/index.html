@@ -24,6 +24,7 @@
     
     <style>
         :root {
+            /* === TEMA ESCURO (padrão) === */
             --primary: #00f5ff;
             --primary-dim: #00a5aa;
             --primary-glow: rgba(0, 245, 255, 0.6);
@@ -49,6 +50,40 @@
             --text-secondary: rgba(255,255,255,0.7);
             --text-muted: rgba(255,255,255,0.4);
             --text-dim: rgba(255,255,255,0.2);
+            
+            /* Transições suaves globais */
+            --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-spring: 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        /* === TEMA CLARO === */
+        [data-theme="light"] {
+            --bg-deep: #f0f4f8;
+            --bg: #ffffff;
+            --bg-elevated: #f8fafc;
+            --surface: rgba(0,0,0,0.03);
+            --surface-hover: rgba(0,0,0,0.06);
+            --border: rgba(0,0,0,0.08);
+            --border-bright: rgba(0,0,0,0.15);
+            --text: #1a1a2e;
+            --text-secondary: rgba(26,26,46,0.7);
+            --text-muted: rgba(26,26,46,0.5);
+            --text-dim: rgba(26,26,46,0.3);
+            --primary: #0099aa;
+            --primary-dim: #007788;
+            --primary-glow: rgba(0, 153, 170, 0.4);
+            --secondary: #cc00cc;
+            --tertiary: #6d28d9;
+        }
+        
+        [data-theme="light"] .cosmos {
+            opacity: 0.15;
+        }
+        
+        [data-theme="light"] .nebula {
+            filter: blur(100px) saturate(0.3);
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1360,6 +1395,320 @@
         .text-input-fallback button:active {
             transform: scale(0.95);
         }
+        
+        /* ========================================
+           HISTÓRICO DE CONVERSAS
+        ======================================== */
+        .chat-history {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 340px;
+            background: var(--bg);
+            border-right: 1px solid var(--border);
+            transform: translateX(-100%);
+            transition: transform var(--transition-normal);
+            z-index: 180;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(20px);
+        }
+        
+        .chat-history.open {
+            transform: translateX(0);
+        }
+        
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem;
+            padding-top: max(1.25rem, env(safe-area-inset-top));
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .chat-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 0.05em;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .chat-message {
+            padding: 0.875rem 1rem;
+            border-radius: 16px;
+            max-width: 90%;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            animation: message-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes message-appear {
+            from { opacity: 0; transform: translateY(10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        .chat-message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--primary), var(--tertiary));
+            color: var(--bg);
+        }
+        
+        .chat-message.assistant {
+            align-self: flex-start;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        
+        .chat-message-time {
+            font-size: 0.65rem;
+            opacity: 0.6;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        
+        .chat-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .chat-empty svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        
+        /* Botão toggle histórico */
+        #historyBtn {
+            position: fixed;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-normal);
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        
+        #historyBtn:hover {
+            background: var(--surface-hover);
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        /* ========================================
+           ATALHOS DE TECLADO - POPUP
+        ======================================== */
+        .shortcuts-popup {
+            position: fixed;
+            bottom: 5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-bright);
+            border-radius: 16px;
+            padding: 1.25rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: all var(--transition-normal);
+            z-index: 200;
+            min-width: 280px;
+            backdrop-filter: blur(20px);
+        }
+        
+        .shortcuts-popup.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        
+        .shortcuts-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        
+        .shortcut-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .shortcut-row:last-child {
+            border-bottom: none;
+        }
+        
+        .shortcut-action {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .shortcut-keys {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .kbd {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--primary);
+            min-width: 28px;
+            text-align: center;
+        }
+        
+        /* ========================================
+           TOGGLE TEMA
+        ======================================== */
+        #themeBtn {
+            position: fixed;
+            right: 4.5rem;
+            top: 1.5rem;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-normal);
+            z-index: 100;
+        }
+        
+        #themeBtn:hover {
+            background: var(--surface-hover);
+            border-color: var(--gold);
+            color: var(--gold);
+            transform: scale(1.1);
+        }
+        
+        #themeBtn .icon-sun,
+        #themeBtn .icon-moon {
+            position: absolute;
+            transition: all var(--transition-normal);
+        }
+        
+        [data-theme="dark"] #themeBtn .icon-sun { opacity: 1; transform: rotate(0deg); }
+        [data-theme="dark"] #themeBtn .icon-moon { opacity: 0; transform: rotate(-90deg); }
+        [data-theme="light"] #themeBtn .icon-sun { opacity: 0; transform: rotate(90deg); }
+        [data-theme="light"] #themeBtn .icon-moon { opacity: 1; transform: rotate(0deg); }
+        
+        /* ========================================
+           ANIMAÇÕES SUAVES APRIMORADAS
+        ======================================== */
+        @keyframes orb-state-transition {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+        
+        #orb {
+            transition: all var(--transition-slow);
+        }
+        
+        #orb.listening,
+        #orb.thinking,
+        #orb.speaking {
+            animation: orb-state-transition 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        /* Visualizador de áudio em tempo real melhorado */
+        .audio-visualizer {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 3px;
+            height: 50px;
+            margin-top: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        .viz-bar {
+            width: 4px;
+            min-height: 4px;
+            background: linear-gradient(to top, var(--primary), var(--secondary));
+            border-radius: 2px;
+            transition: height 0.05s ease-out;
+            will-change: height;
+        }
+        
+        /* Estado inativo - barras mínimas */
+        .audio-visualizer:not(.active) .viz-bar {
+            height: 4px !important;
+        }
+        
+        .audio-visualizer.active .viz-bar {
+            animation: viz-pulse 0.15s ease-in-out infinite alternate;
+        }
+        
+        @keyframes viz-pulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+        
+        /* Mobile responsivo para novos elementos */
+        @media (max-width: 600px) {
+            .chat-history {
+                width: 100%;
+            }
+            
+            #historyBtn {
+                left: 0.5rem;
+                width: 38px;
+                height: 38px;
+            }
+            
+            #themeBtn {
+                right: 3.5rem;
+                top: max(1rem, env(safe-area-inset-top));
+                width: 36px;
+                height: 36px;
+            }
+            
+            .shortcuts-popup {
+                width: calc(100% - 2rem);
+                min-width: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1447,6 +1796,65 @@
                 <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
             </svg>
         </button>
+        
+        <!-- Botão toggle tema -->
+        <button id="themeBtn" aria-label="Alternar tema claro/escuro">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/>
+            </svg>
+            <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+            </svg>
+        </button>
+    </div>
+    
+    <!-- Botão toggle histórico -->
+    <button id="historyBtn" aria-label="Abrir histórico de conversas">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        </svg>
+    </button>
+    
+    <!-- Painel de histórico de conversas -->
+    <div class="chat-history" id="chatHistory">
+        <div class="chat-header">
+            <span class="chat-title">💬 HISTÓRICO</span>
+            <button class="close-btn" id="closeChatHistory">×</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                </svg>
+                <p>Nenhuma conversa ainda</p>
+                <small>Toque no orbe para começar</small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Popup de atalhos de teclado -->
+    <div class="shortcuts-popup" id="shortcutsPopup">
+        <div class="shortcuts-title">⌨️ Atalhos de Teclado</div>
+        <div class="shortcut-row">
+            <span class="shortcut-action">Ativar/Desativar voz</span>
+            <div class="shortcut-keys"><span class="kbd">Espaço</span></div>
+        </div>
+        <div class="shortcut-row">
+            <span class="shortcut-action">Abrir configurações</span>
+            <div class="shortcut-keys"><span class="kbd">S</span></div>
+        </div>
+        <div class="shortcut-row">
+            <span class="shortcut-action">Alternar tema</span>
+            <div class="shortcut-keys"><span class="kbd">T</span></div>
+        </div>
+        <div class="shortcut-row">
+            <span class="shortcut-action">Histórico</span>
+            <div class="shortcut-keys"><span class="kbd">H</span></div>
+        </div>
+        <div class="shortcut-row">
+            <span class="shortcut-action">Ver atalhos</span>
+            <div class="shortcut-keys"><span class="kbd">?</span></div>
+        </div>
     </div>
     
     <!-- Painel de Configurações -->
@@ -1670,11 +2078,164 @@
         // Handlers do painel
         document.getElementById('overlay').addEventListener('click', () => {
             document.getElementById('settingsPanel').classList.remove('open');
+            document.getElementById('chatHistory').classList.remove('open');
         });
         
         document.getElementById('closeSettings').addEventListener('click', () => {
             document.getElementById('settingsPanel').classList.remove('open');
         });
+        
+        // ========================================
+        // TEMA CLARO/ESCURO
+        // ========================================
+        const themeBtn = document.getElementById('themeBtn');
+        const savedTheme = localStorage.getItem('aria-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        themeBtn.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('aria-theme', next);
+            
+            // Feedback tátil
+            if (navigator.vibrate) navigator.vibrate(10);
+        });
+        
+        // ========================================
+        // HISTÓRICO DE CONVERSAS
+        // ========================================
+        const historyBtn = document.getElementById('historyBtn');
+        const chatHistory = document.getElementById('chatHistory');
+        const closeChatHistory = document.getElementById('closeChatHistory');
+        const chatMessages = document.getElementById('chatMessages');
+        
+        historyBtn.addEventListener('click', () => {
+            chatHistory.classList.toggle('open');
+            document.getElementById('settingsPanel').classList.remove('open');
+        });
+        
+        closeChatHistory.addEventListener('click', () => {
+            chatHistory.classList.remove('open');
+        });
+        
+        // Função para adicionar mensagem ao histórico
+        window.addChatMessage = function(text, role) {
+            // Remove o estado vazio se existir
+            const emptyState = chatMessages.querySelector('.chat-empty');
+            if (emptyState) emptyState.remove();
+            
+            const msg = document.createElement('div');
+            msg.className = `chat-message ${role}`;
+            
+            const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            msg.innerHTML = `
+                <span>${text}</span>
+                <span class="chat-message-time">${time}</span>
+            `;
+            
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+        
+        // ========================================
+        // ATALHOS DE TECLADO
+        // ========================================
+        const shortcutsPopup = document.getElementById('shortcutsPopup');
+        let shortcutsTimeout = null;
+        
+        function showShortcuts() {
+            shortcutsPopup.classList.add('visible');
+            clearTimeout(shortcutsTimeout);
+            shortcutsTimeout = setTimeout(() => {
+                shortcutsPopup.classList.remove('visible');
+            }, 4000);
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            // Ignorar se estiver digitando em input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            
+            switch (e.key.toLowerCase()) {
+                case ' ':
+                    e.preventDefault();
+                    document.getElementById('orb').click();
+                    break;
+                case 's':
+                    document.getElementById('settingsBtn').click();
+                    break;
+                case 't':
+                    themeBtn.click();
+                    break;
+                case 'h':
+                    historyBtn.click();
+                    break;
+                case '?':
+                    showShortcuts();
+                    break;
+                case 'escape':
+                    document.getElementById('settingsPanel').classList.remove('open');
+                    chatHistory.classList.remove('open');
+                    shortcutsPopup.classList.remove('visible');
+                    break;
+            }
+        });
+        
+        // ========================================
+        // VISUALIZADOR DE ÁUDIO EM TEMPO REAL
+        // ========================================
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+        let animationId = null;
+        
+        window.startAudioVisualization = function(mediaStream) {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                analyser.smoothingTimeConstant = 0.6;
+                source.connect(analyser);
+                
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                visualizer.classList.add('active');
+                
+                function draw() {
+                    if (!analyser) return;
+                    
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    bars.forEach((bar, i) => {
+                        const dataIndex = Math.floor(i * dataArray.length / bars.length);
+                        const value = dataArray[dataIndex] || 0;
+                        const height = Math.max(4, (value / 255) * 50);
+                        bar.style.height = height + 'px';
+                    });
+                    
+                    animationId = requestAnimationFrame(draw);
+                }
+                draw();
+            } catch (err) {
+                console.log('Visualização de áudio não disponível:', err);
+            }
+        };
+        
+        window.stopAudioVisualization = function() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            visualizer.classList.remove('active');
+            bars.forEach(bar => bar.style.height = '4px');
+        };
     </script>
 </body>
 </html>

@@ -284,6 +284,18 @@ class ARIA {
             this.state.listening = true;
             this.$.orb.classList.add('listening');
             this.transcript = '';
+            
+            // Iniciar visualização de áudio em tempo real
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        this.micStream = stream;
+                        if (window.startAudioVisualization) {
+                            window.startAudioVisualization(stream);
+                        }
+                    })
+                    .catch(err => console.log('Visualização não disponível:', err));
+            }
         };
         
         this.recognition.onresult = (event) => {
@@ -312,6 +324,17 @@ class ARIA {
         this.recognition.onend = () => {
             this.state.listening = false;
             this.$.orb.classList.remove('listening');
+            
+            // Parar visualização de áudio
+            if (window.stopAudioVisualization) {
+                window.stopAudioVisualization();
+            }
+            
+            // Parar stream do microfone
+            if (this.micStream) {
+                this.micStream.getTracks().forEach(track => track.stop());
+                this.micStream = null;
+            }
         };
         
         this.recognition.onerror = (event) => {
@@ -567,6 +590,12 @@ class ARIA {
             
             // Salvar resposta para fallback
             this.lastResponse = data.response;
+            
+            // Adicionar ao histórico de conversas (UX)
+            if (window.addChatMessage) {
+                window.addChatMessage(message, 'user');
+                window.addChatMessage(data.response, 'assistant');
+            }
             
             // Mostrar resposta brevemente
             this.showResponse(data.response);
