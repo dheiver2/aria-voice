@@ -22,6 +22,13 @@ class ARIA {
         
         this.recognition = null;
         this.audio = new Audio();
+        // Ensure audio plays inline on mobile
+        try {
+            this.audio.setAttribute('playsinline', 'true');
+            this.audio.setAttribute('webkit-playsinline', 'true');
+            this.audio.playsInline = true;
+            this.audio.crossOrigin = 'anonymous';
+        } catch (e) {}
         this.speechTimeout = null;
         this.transcript = '';
         
@@ -68,8 +75,35 @@ class ARIA {
         
         // Event listeners
         this.setupEventListeners();
+
+        // iOS/Android: unlock audio on first tap/pointer event to avoid autoplay restrictions
+        const unlockHandler = async () => {
+            await this.unlockAudio();
+            document.removeEventListener('touchstart', unlockHandler);
+            document.removeEventListener('pointerdown', unlockHandler);
+        };
+        document.addEventListener('touchstart', unlockHandler, { once: true });
+        document.addEventListener('pointerdown', unlockHandler, { once: true });
+
+        // If on iOS and audio hasn't been unlocked, show a gentle hint to the user
+        if (this.isIOS && !this.audioUnlocked) {
+            setTimeout(() => this.showAudioUnlockHint(), 500);
+        }
         
         console.log('✅ ARIA pronta!');
+    }
+
+    showAudioUnlockHint() {
+        if (document.getElementById('audioUnlockHint')) return;
+        const hint = document.createElement('div');
+        hint.id = 'audioUnlockHint';
+        hint.className = 'permissions-banner';
+        hint.innerHTML = `
+            <div class="banner-text">Toque em qualquer lugar da tela para ativar áudio e microfone.</div>
+            <button id="audioUnlockDismiss" aria-label="Fechar">OK</button>
+        `;
+        document.body.appendChild(hint);
+        document.getElementById('audioUnlockDismiss').addEventListener('click', () => hint.remove());
     }
     
     checkBrowserSupport() {
@@ -99,7 +133,7 @@ class ARIA {
         inputWrapper.id = 'textInputFallback';
         inputWrapper.className = 'text-input-fallback';
         inputWrapper.innerHTML = `
-            <input type="text" id="textInput" placeholder="Digite sua mensagem..." autocomplete="off" />
+            <input type="text" id="textInput" placeholder="Digite sua mensagem..." autocomplete="on" autocapitalize="sentences" autocorrect="on" inputmode="text" />
             <button id="sendTextBtn" aria-label="Enviar mensagem">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
@@ -121,9 +155,11 @@ class ARIA {
         };
         
         btn.addEventListener('click', sendMessage);
-        input.addEventListener('keypress', (e) => {
+        input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
+        // Focar automaticamente em mobile para abrir teclado
+        try { input.focus(); } catch (e) {}
     }
     
     showNotification(message, type = 'error') {
@@ -345,6 +381,7 @@ class ARIA {
                 case 'not-allowed':
                     this.showNotification('Permita o acesso ao microfone nas configurações do navegador', 'error');
                     this.showTextInputFallback();
+                    this.showMicrophonePermissionBanner();
                     break;
                 case 'network':
                     this.showNotification('Erro de conexão. Verifique sua internet.', 'error');
@@ -366,6 +403,25 @@ class ARIA {
             this.state.listening = false;
             this.$.orb.classList.remove('listening');
         };
+
+    }
+
+    showMicrophonePermissionBanner() {
+        if (document.getElementById('micPermissionBanner')) return;
+        const banner = document.createElement('div');
+        banner.id = 'micPermissionBanner';
+        banner.className = 'permissions-banner';
+        banner.innerHTML = `
+            <div class="banner-text">Permissão de microfone bloqueada. <button id="micBannerOpen">Como liberar</button></div>
+            <button id="micBannerDismiss" aria-label="Fechar">×</button>
+        `;
+        document.body.appendChild(banner);
+
+        document.getElementById('micBannerDismiss').addEventListener('click', () => banner.remove());
+        document.getElementById('micBannerOpen').addEventListener('click', () => {
+            // Mostrar instruções simples inline
+            alert('Abra \nConfigurações -> Safari/Chrome -> Microfone -> Permitir para aria-voice.vercel.app');
+        });
     }
     
     processTranscript() {
@@ -524,6 +580,15 @@ class ARIA {
         }
         
         try {
+            // Ensure mic stream is obtained early (useful for iOS / permission prompt)
+            if (!this.micStream && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    if (window.startAudioVisualization) window.startAudioVisualization(this.micStream);
+                } catch (e) {
+                    // Don't block recognition start if the mic stream fails here
+                }
+            }
             this.recognition.start();
             console.log('🎙️ Reconhecimento iniciado');
         } catch (e) {
@@ -658,6 +723,7 @@ class ARIA {
             const audio = new Audio();
             audio.setAttribute('playsinline', 'true'); // Importante para iOS
             audio.setAttribute('webkit-playsinline', 'true');
+            try { audio.playsInline = true; audio.crossOrigin = 'anonymous'; } catch (e) {}
             
             // Converter base64 para blob
             try {
@@ -943,7 +1009,9 @@ class ARIA {
     
     setupEventListeners() {
         // Clique no orb
-        this.$.orb.addEventListener('click', () => {
+        this.$.orb.addEventListener('click', async () => {
+            // Ensure audio unlocked during orb press (extra safety)
+            if (!this.audioUnlocked) await this.unlockAudio();
             // Haptic feedback para mobile
             if (this.isMobile && navigator.vibrate) {
                 navigator.vibrate(50);
