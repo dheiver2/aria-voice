@@ -124,7 +124,7 @@ async function chat(message, sessionId, model) {
     
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
-        ...history.slice(-8), // Manter últimas 8 mensagens (4 turnos) para contexto fluido
+        ...history.slice(-6), // Reduzido para 6 mensagens para resposta mais rápida
         { role: 'user', content: message }
     ];
 
@@ -139,8 +139,9 @@ async function chat(message, sessionId, model) {
         body: JSON.stringify({
             model: model || defaultSettings.model,
             messages,
-            temperature: 0.7,
-            max_tokens: 150
+            temperature: 0.8,
+            max_tokens: 120,
+            top_p: 0.9
         })
     });
 

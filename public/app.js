@@ -347,8 +347,8 @@ class ARIA {
             if (result.isFinal) {
                 this.processTranscript();
             } else {
-                // Processar após silêncio (mais tempo no mobile para conexões lentas)
-                const timeout = this.isMobile ? 1200 : 800;
+                // Processar após silêncio (reduzido para resposta mais rápida)
+                const timeout = this.isMobile ? 800 : 500;
                 this.speechTimeout = setTimeout(() => {
                     if (this.transcript && this.state.listening) {
                         this.processTranscript();
@@ -627,7 +627,7 @@ class ARIA {
         
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout - mais agressivo
             
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -1026,11 +1026,14 @@ class ARIA {
             }
         });
         
-        // Configurações
-        this.$.settingsBtn?.addEventListener('click', (e) => {
-            e.stopPropagation(); // Evitar que o clique feche o painel imediatamente
+        // Configurações - adicionar touch e click para melhor resposta
+        const toggleSettings = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             this.$.settingsPanel.classList.toggle('open');
-        });
+        };
+        this.$.settingsBtn?.addEventListener('click', toggleSettings);
+        this.$.settingsBtn?.addEventListener('touchend', toggleSettings, { passive: false });
         
         // Fechar configurações ao clicar fora
         document.addEventListener('click', (e) => {
