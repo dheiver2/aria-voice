@@ -627,7 +627,7 @@ class ARIA {
         
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout - mais agressivo
+            const timeoutId = setTimeout(() => controller.abort(), 45000); // chat + TTS podem levar vários segundos
             
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -669,8 +669,8 @@ class ARIA {
             
             // Prioridade: ElevenLabs TTS (base64) > Browser TTS
             if (data.audioBase64 && data.audioBase64.length > 0) {
-                console.log('🎵 Tocando áudio ElevenLabs');
-                await this.playBase64Audio(data.audioBase64);
+                console.log('🎵 Tocando áudio do servidor');
+                await this.playBase64Audio(data.audioBase64, data.audioMime || 'audio/mpeg');
             } else {
                 console.log('🗣️ Usando TTS do navegador');
                 await this.speakWithBrowser(data.response);
@@ -703,7 +703,7 @@ class ARIA {
     // ÁUDIO ELEVENLABS TTS (voz ultra-natural)
     // ============================================
     
-    async playBase64Audio(base64) {
+    async playBase64Audio(base64, mime = 'audio/mpeg') {
         return new Promise(async (resolve) => {
             console.log('🎵 Preparando áudio, tamanho base64:', base64.length);
             
@@ -733,12 +733,12 @@ class ARIA {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
                 const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+                const blob = new Blob([byteArray], { type: mime });
                 const audioUrl = URL.createObjectURL(blob);
                 audio.src = audioUrl;
             } catch (e) {
                 console.error('❌ Erro base64:', e);
-                audio.src = `data:audio/mpeg;base64,${base64}`;
+                audio.src = `data:${mime};base64,${base64}`;
             }
             
             audio.volume = 1.0;

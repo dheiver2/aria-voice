@@ -47,7 +47,7 @@ ARIA pode usar diferentes "mentes" via OpenRouter:
 
 ### Requisitos
 - Node.js 18+
-- Chave de API do [OpenRouter](https://openrouter.ai)
+- Token do [Hugging Face](https://huggingface.co/settings/tokens) (ou chave do OpenRouter)
 - Python 3 com Edge-TTS (`pip install edge-tts`)
 
 ### Instalação
@@ -61,7 +61,7 @@ cd aria-voice
 npm install
 
 # Configure sua chave OpenRouter
-echo "OPENROUTER_API_KEY=sua_chave_aqui" > .env
+echo "HF_TOKEN=seu_token_aqui" > .env
 
 # Inicie ARIA
 npm start
@@ -110,11 +110,13 @@ pip install edge-tts
 Crie um arquivo `.env` na raiz do projeto:
 
 ```env
-OPENROUTER_API_KEY=sua_chave_openrouter_aqui
+HF_TOKEN=seu_token_huggingface
+# ou, alternativamente:
+# OPENROUTER_API_KEY=sua_chave_openrouter
 PORT=3000
 ```
 
-> 📌 Obtenha sua chave API em: https://openrouter.ai/keys
+> 📌 Obtenha seu token em: https://huggingface.co/settings/tokens
 
 ### 3. Iniciar o servidor
 
@@ -184,8 +186,8 @@ aria-voice/
 
 - Node.js 18+ 
 - Python 3.8+ (para edge-tts)
-- Navegador moderno com suporte a Web Speech API (Chrome recomendado)
-- Chave de API do OpenRouter
+- Navegador moderno com suporte a Web Speech API (Chrome e Safari suportados)
+- Token do Hugging Face (HF_TOKEN) ou chave do OpenRouter
 
 ## 💰 Custos OpenRouter
 
