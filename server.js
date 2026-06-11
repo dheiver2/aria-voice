@@ -193,10 +193,13 @@ async function generateSpeech(text) {
         console.log('✅ Áudio ElevenLabs pt-BR:', audioBuffer.byteLength, 'bytes');
         return { base64: audioBuffer.toString('base64'), mime: 'audio/mpeg' };
     } catch (error) {
-        console.error('❌ ElevenLabs Error:', error.message);
+        const detail = error?.body ? JSON.stringify(error.body) : error.message;
+        console.error('❌ ElevenLabs Error:', detail);
+        lastTtsError = detail;
         return null; // cliente cai para a voz pt-BR do navegador
     }
 }
+let lastTtsError = null;
 
 // Chat somente texto (o cliente pipelina o TTS por sentença)
 app.post('/api/chat-text', async (req, res) => {
@@ -232,7 +235,8 @@ app.post('/api/tts', async (req, res) => {
         const speech = await generateSpeech(text.slice(0, 600));
         res.json({
             audioBase64: speech?.base64 || null,
-            audioMime: speech?.mime || null
+            audioMime: speech?.mime || null,
+            ...(req.body.debug ? { debugError: lastTtsError } : {})
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
