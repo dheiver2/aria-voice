@@ -17,8 +17,10 @@ class ARIA {
             voice: 'francisca',
             speed: 0,
             model: 'openai/gpt-4o-mini',
-            autoListen: true // Reiniciar escuta após resposta
+            autoListen: true, // Reiniciar escuta após resposta
+            bargeIn: true // Interromper a ARIA falando por cima
         };
+        this.bargeInActive = false;
         
         this.recognition = null;
         this.audio = new Audio();
@@ -336,8 +338,17 @@ class ARIA {
         
         this.recognition.onresult = (event) => {
             const result = event.results[event.results.length - 1];
-            this.transcript = result[0].transcript.trim();
-            
+            const text = result[0].transcript.trim();
+
+            // Interrupção por voz (barge-in) enquanto a ARIA fala
+            if (this.state.speaking) {
+                if (this.isLikelyEcho(text)) return;
+                console.log('🖐️ Interrompida por voz:', text);
+                this.stopAudio();
+            }
+
+            this.transcript = text;
+
             // Mostrar texto em tempo real
             this.showTranscript(this.transcript, !result.isFinal);
             
@@ -360,7 +371,17 @@ class ARIA {
         this.recognition.onend = () => {
             this.state.listening = false;
             this.$.orb.classList.remove('listening');
-            
+
+            // Manter a escuta de interrupção viva enquanto a ARIA fala
+            if (this.bargeInActive && this.state.speaking) {
+                setTimeout(() => {
+                    if (this.bargeInActive && this.state.speaking) {
+                        try { this.recognition.start(); } catch (e) {}
+                    }
+                }, 150);
+                return;
+            }
+
             // Parar visualização de áudio
             if (window.stopAudioVisualization) {
                 window.stopAudioVisualization();
@@ -601,6 +622,39 @@ class ARIA {
         }
     }
     
+    // ============================================
+    // BARGE-IN: interromper a ARIA falando por cima
+    // ============================================
+
+    startBargeIn() {
+        if (!this.settings.bargeIn || !this.recognition) return;
+        // No iOS, microfone + reprodução simultâneos derrubam o áudio; usuário interrompe pelo toque
+        if (this.isIOS) return;
+        if (this.state.listening || this.bargeInActive) return;
+        this.bargeInActive = true;
+        try {
+            this.recognition.start();
+            console.log('👂 Escuta de interrupção ativa');
+        } catch (e) {
+            this.bargeInActive = false;
+        }
+    }
+
+    stopBargeIn() {
+        this.bargeInActive = false;
+    }
+
+    // Ignora o eco da própria ARIA captado pelo microfone
+    isLikelyEcho(text) {
+        const norm = s => s.toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+        const t = norm(text);
+        if (!t || t.split(' ').length < 2) return true; // curto demais para valer como interrupção
+        const last = norm(this.lastResponse || '');
+        return last.includes(t);
+    }
+
     stopListening() {
         if (this.speechTimeout) {
             clearTimeout(this.speechTimeout);
@@ -727,6 +781,7 @@ class ARIA {
             
             // Sempre criar novo Audio
             const audio = new Audio();
+            this.currentAudio = audio;
             audio.setAttribute('playsinline', 'true'); // Importante para iOS
             audio.setAttribute('webkit-playsinline', 'true');
             try { audio.playsInline = true; audio.crossOrigin = 'anonymous'; } catch (e) {}
@@ -753,6 +808,7 @@ class ARIA {
             const cleanup = () => {
                 this.state.speaking = false;
                 this.$.orb.classList.remove('speaking');
+                this.stopBargeIn();
                 if (audio.src.startsWith('blob:')) {
                     URL.revokeObjectURL(audio.src);
                 }
@@ -774,6 +830,7 @@ class ARIA {
             try {
                 await audio.play();
                 console.log('▶️ Audio tocando');
+                this.startBargeIn();
             } catch (e) {
                 console.error('❌ Erro play:', e.message);
                 cleanup();
@@ -865,17 +922,19 @@ class ARIA {
                 this.state.speaking = true;
                 this.state.processing = false;
                 this.$.orb.classList.add('speaking');
-                
+                this.startBargeIn();
+
                 const voice = this.getBestFemaleVoice();
-                
+
                 for (let i = 0; i < chunks.length; i++) {
                     if (!this.state.speaking) break; // Interrompido
-                    
+
                     await this.speakChunk(chunks[i], voice);
                 }
-                
+
                 this.state.speaking = false;
                 this.$.orb.classList.remove('speaking');
+                this.stopBargeIn();
                 resolve();
             };
             
@@ -999,7 +1058,16 @@ class ARIA {
     stopAudio() {
         this.audio.pause();
         this.audio.currentTime = 0;
-        
+
+        // Parar o áudio em reprodução no momento (instância local do TTS)
+        if (this.currentAudio) {
+            try {
+                this.currentAudio.pause();
+                this.currentAudio.currentTime = 0;
+            } catch (e) {}
+            this.currentAudio = null;
+        }
+
         // Parar TTS do navegador também
         if ('speechSynthesis' in window) {
             speechSynthesis.cancel();
@@ -1007,8 +1075,9 @@ class ARIA {
         
         this.state.speaking = false;
         this.$.orb.classList.remove('speaking');
+        this.bargeInActive = false;
     }
-    
+
     // ============================================
     // UI
     // ============================================
@@ -1025,6 +1094,8 @@ class ARIA {
             
             if (this.state.speaking) {
                 this.stopAudio();
+                // Após interromper, já começa a escutar
+                setTimeout(() => this.startListening(), 250);
             } else if (this.state.listening) {
                 this.stopListening();
             } else if (!this.state.processing) {
@@ -1079,6 +1150,18 @@ class ARIA {
                 
                 // Feedback visual
                 const status = e.target.checked ? 'Escuta contínua ativada' : 'Escuta contínua desativada';
+                this.showNotification(status, 'info');
+            });
+        }
+
+        // Toggle interromper por voz (barge-in)
+        const bargeInToggle = document.getElementById('bargeInToggle');
+        if (bargeInToggle) {
+            bargeInToggle.checked = this.settings.bargeIn;
+            bargeInToggle.addEventListener('change', (e) => {
+                this.settings.bargeIn = e.target.checked;
+                this.saveSettings();
+                const status = e.target.checked ? 'Interrupção por voz ativada' : 'Interrupção por voz desativada';
                 this.showNotification(status, 'info');
             });
         }
