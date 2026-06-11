@@ -1814,6 +1814,90 @@
                 display: none !important;
             }
         }
+        /* ===== Melhorias UI/UX ===== */
+        #orb { touch-action: manipulation; }
+
+        .status-label {
+            position: fixed;
+            bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary, rgba(255,255,255,0.7));
+            text-align: center;
+            pointer-events: none;
+            transition: opacity 0.3s, color 0.3s;
+            z-index: 50;
+        }
+        .status-label.active { color: var(--accent, #6de3ff); }
+
+        .model-badge {
+            position: fixed;
+            top: calc(14px + env(safe-area-inset-top, 0px));
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(120, 200, 255, 0.25);
+            background: rgba(20, 30, 50, 0.45);
+            color: var(--text-secondary, rgba(255,255,255,0.65));
+            backdrop-filter: blur(8px);
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .typing-indicator {
+            display: inline-flex;
+            gap: 5px;
+            padding: 10px 14px;
+        }
+        .typing-indicator i {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.5;
+            animation: typingBlink 1.2s infinite;
+        }
+        .typing-indicator i:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator i:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBlink {
+            0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-3px); }
+        }
+
+        .chat-copy-btn {
+            margin-top: 6px;
+            align-self: flex-end;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: transparent;
+            color: inherit;
+            opacity: 0.55;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .chat-copy-btn:hover { opacity: 1; }
+
+        .bottom-hint {
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        #historyBtn {
+            margin-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        @media (max-width: 480px) {
+            #settingsBtn, #themeBtn, #historyBtn {
+                min-width: 44px;
+                min-height: 44px;
+            }
+            .status-label { font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -1877,6 +1961,9 @@
             
             <!-- Visualizador de áudio -->
             <div class="audio-visualizer" id="visualizer"></div>
+
+            <!-- Rótulo de status (acessível) -->
+            <div class="status-label" id="statusLabel" role="status" aria-live="polite">Toque no orbe para falar</div>
             
             <!-- Métricas -->
             <div class="metrics-panel">
@@ -1913,6 +2000,9 @@
         </button>
     </div>
     
+    <!-- Badge do modelo ativo -->
+    <div class="model-badge" id="modelBadge"></div>
+
     <!-- Botão toggle histórico -->
     <button id="historyBtn" aria-label="Abrir histórico de conversas">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1926,7 +2016,7 @@
             <span class="chat-title">💬 HISTÓRICO</span>
             <button class="close-btn" id="closeChatHistory">×</button>
         </div>
-        <div class="chat-messages" id="chatMessages">
+        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
             <div class="chat-empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -2148,10 +2238,47 @@
         let activeTime = 0;
         let lastActiveState = false;
         
+        // Rótulo de status + indicador de digitação derivados do estado do orbe
+        const statusLabel = document.getElementById('statusLabel');
+        let lastStatusKey = '';
+        function updateStatus(orb) {
+            const key = orb.classList.contains('speaking') ? 'speaking'
+                : orb.classList.contains('thinking') ? 'thinking'
+                : orb.classList.contains('listening') ? 'listening'
+                : 'idle';
+            if (key === lastStatusKey) return;
+            lastStatusKey = key;
+
+            const texts = {
+                idle: 'Toque no orbe para falar',
+                listening: 'Ouvindo… fale agora',
+                thinking: 'Pensando…',
+                speaking: 'Falando — toque para parar'
+            };
+            statusLabel.textContent = texts[key];
+            statusLabel.classList.toggle('active', key !== 'idle');
+            orb.setAttribute('aria-pressed', key === 'listening' ? 'true' : 'false');
+
+            // Indicador de "digitando" no histórico enquanto pensa
+            const msgContainer = document.getElementById('chatMessages');
+            const existing = document.getElementById('typingMsg');
+            if (key === 'thinking' && !existing && msgContainer) {
+                const msg = document.createElement('div');
+                msg.id = 'typingMsg';
+                msg.className = 'chat-message assistant';
+                msg.innerHTML = '<span class="typing-indicator" aria-label="ARIA está pensando"><i></i><i></i><i></i></span>';
+                msgContainer.appendChild(msg);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            } else if (key !== 'thinking' && existing) {
+                existing.remove();
+            }
+        }
+
         function animateUI() {
             const orb = document.getElementById('orb');
             const isActive = orb.classList.contains('speaking') || orb.classList.contains('listening');
-            
+            updateStatus(orb);
+
             if (isActive) {
                 // Animar barras
                 bars.forEach((bar, i) => {
@@ -2224,24 +2351,102 @@
             chatHistory.classList.remove('open');
         });
         
-        // Função para adicionar mensagem ao histórico
-        window.addChatMessage = function(text, role) {
-            // Remove o estado vazio se existir
+        // Histórico persistente no localStorage
+        const CHAT_STORE = 'aria-chat-history';
+        const MAX_STORED = 50;
+
+        function loadStoredChat() {
+            try {
+                return JSON.parse(localStorage.getItem(CHAT_STORE)) || [];
+            } catch (e) { return []; }
+        }
+
+        function storeChatMessage(text, role, time) {
+            const items = loadStoredChat();
+            items.push({ text, role, time });
+            localStorage.setItem(CHAT_STORE, JSON.stringify(items.slice(-MAX_STORED)));
+        }
+
+        function renderChatMessage(text, role, time) {
             const emptyState = chatMessages.querySelector('.chat-empty');
             if (emptyState) emptyState.remove();
-            
+
             const msg = document.createElement('div');
             msg.className = `chat-message ${role}`;
-            
-            const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            msg.innerHTML = `
-                <span>${text}</span>
-                <span class="chat-message-time">${time}</span>
-            `;
-            
+
+            const textEl = document.createElement('span');
+            textEl.textContent = text;
+            const timeEl = document.createElement('span');
+            timeEl.className = 'chat-message-time';
+            timeEl.textContent = time;
+            msg.appendChild(textEl);
+            msg.appendChild(timeEl);
+
+            if (role === 'assistant' && navigator.clipboard) {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'chat-copy-btn';
+                copyBtn.textContent = 'Copiar';
+                copyBtn.setAttribute('aria-label', 'Copiar resposta');
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(text).then(() => {
+                        copyBtn.textContent = 'Copiado ✓';
+                        setTimeout(() => { copyBtn.textContent = 'Copiar'; }, 1500);
+                    });
+                });
+                msg.appendChild(copyBtn);
+            }
+
             chatMessages.appendChild(msg);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Função para adicionar mensagem ao histórico
+        window.addChatMessage = function(text, role) {
+            const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            renderChatMessage(text, role, time);
+            storeChatMessage(text, role, time);
         };
+
+        // Limpar histórico visual + armazenado
+        window.clearChatMessages = function() {
+            localStorage.removeItem(CHAT_STORE);
+            chatMessages.innerHTML = `
+                <div class="chat-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                    </svg>
+                    <p>Nenhuma conversa ainda</p>
+                    <small>Toque no orbe para começar</small>
+                </div>`;
+        };
+
+        // Restaurar conversas salvas ao abrir
+        loadStoredChat().forEach(m => renderChatMessage(m.text, m.role, m.time || ''));
+
+        // ========================================
+        // BADGE DO MODELO ATIVO
+        // ========================================
+        const modelBadge = document.getElementById('modelBadge');
+        let modelNames = {};
+
+        function updateModelBadge(modelId) {
+            if (!modelBadge) return;
+            modelBadge.textContent = modelNames[modelId] || modelId || '';
+        }
+        window.updateModelBadge = updateModelBadge;
+
+        fetch('/api/models')
+            .then(r => r.json())
+            .then(data => {
+                (data.models || []).forEach(m => { modelNames[m.id] = m.name; });
+                const saved = window.aria?.settings?.model;
+                updateModelBadge(saved || data.current);
+            })
+            .catch(() => {});
+
+        document.getElementById('modelSelect')?.addEventListener('change', (e) => {
+            updateModelBadge(e.target.value);
+        });
         
         // ========================================
         // ATALHOS DE TECLADO

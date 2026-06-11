@@ -692,6 +692,12 @@ class ARIA {
             this.$.orb.classList.remove('thinking');
             this.state.processing = false;
             
+            // Feedback visível para o usuário
+            const friendly = error.name === 'AbortError'
+                ? 'A resposta demorou demais. Tente novamente.'
+                : 'Não consegui responder agora. Verifique sua conexão e tente novamente.';
+            this.showNotification(friendly, 'error');
+
             // Tentar falar erro no mobile
             if (this.isMobile && error.name === 'AbortError') {
                 this.speakWithBrowser('Desculpe, a conexão demorou muito. Tente novamente.');
@@ -1079,13 +1085,18 @@ class ARIA {
         
         // Limpar conversa
         this.$.clearBtn?.addEventListener('click', async () => {
-            await fetch('/api/clear', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: this.state.sessionId })
-            });
+            if (!confirm('Apagar toda a conversa?')) return;
+            try {
+                await fetch('/api/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: this.state.sessionId })
+                });
+            } catch (e) {}
             this.state.sessionId = `session_${Date.now()}`;
+            if (window.clearChatMessages) window.clearChatMessages();
             this.$.settingsPanel.classList.remove('open');
+            this.showNotification('Conversa apagada', 'info');
         });
         
         // Teclado
