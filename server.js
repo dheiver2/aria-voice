@@ -17,7 +17,6 @@ const PORT = process.env.PORT || 3000;
 const HF_TOKEN = process.env.HF_TOKEN;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const HF_CHAT_URL = 'https://router.huggingface.co/v1/chat/completions';
-const HF_TTS_URL = 'https://router.huggingface.co/fal-ai/fal-ai/chatterbox/text-to-speech';
 const IS_VERCEL = process.env.VERCEL === '1';
 
 // Cliente ElevenLabs
@@ -26,8 +25,8 @@ if (ELEVENLABS_API_KEY) {
     elevenlabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
 }
 
-// Voz padrão - George (a do exemplo, muito natural)
-const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb';
+// Voz ElevenLabs (sobreponível por env). language_code força pt-BR na síntese.
+const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
 
 // ============================================
 // MIDDLEWARE
@@ -167,65 +166,36 @@ app.get('/api/health', (req, res) => {
         version: '6.0.0',
         vercel: IS_VERCEL,
         chat: HF_TOKEN ? 'huggingface' : 'none',
-        tts: elevenlabs ? 'elevenlabs' : (HF_TOKEN ? 'huggingface' : 'browser')
+        tts: elevenlabs ? 'elevenlabs-ptbr' : 'browser-ptbr'
     });
 });
 
-// TTS: ElevenLabs (premium) → Hugging Face/fal Chatterbox → null (navegador)
+// TTS: ElevenLabs em pt-BR → null (cliente usa a voz pt-BR do navegador)
 // Retorna { base64, mime } ou null
 async function generateSpeech(text) {
-    if (elevenlabs) {
-        try {
-            const audio = await elevenlabs.textToSpeech.convert(
-                DEFAULT_VOICE_ID,
-                {
-                    text: text,
-                    modelId: 'eleven_multilingual_v2',
-                    outputFormat: 'mp3_44100_128'
-                }
-            );
-            const chunks = [];
-            for await (const chunk of audio) {
-                chunks.push(chunk);
+    if (!elevenlabs) return null;
+
+    try {
+        const audio = await elevenlabs.textToSpeech.convert(
+            DEFAULT_VOICE_ID,
+            {
+                text: text,
+                modelId: 'eleven_turbo_v2_5',
+                languageCode: 'pt', // força português na síntese
+                outputFormat: 'mp3_44100_128'
             }
-            const audioBuffer = Buffer.concat(chunks);
-            console.log('✅ Áudio ElevenLabs:', audioBuffer.byteLength, 'bytes');
-            return { base64: audioBuffer.toString('base64'), mime: 'audio/mpeg' };
-        } catch (error) {
-            console.error('❌ ElevenLabs Error:', error.message);
-            // cai para o próximo provedor
+        );
+        const chunks = [];
+        for await (const chunk of audio) {
+            chunks.push(chunk);
         }
+        const audioBuffer = Buffer.concat(chunks);
+        console.log('✅ Áudio ElevenLabs pt-BR:', audioBuffer.byteLength, 'bytes');
+        return { base64: audioBuffer.toString('base64'), mime: 'audio/mpeg' };
+    } catch (error) {
+        console.error('❌ ElevenLabs Error:', error.message);
+        return null; // cliente cai para a voz pt-BR do navegador
     }
-
-    if (HF_TOKEN) {
-        try {
-            const res = await fetch(HF_TTS_URL, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${HF_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ text })
-            });
-            if (!res.ok) {
-                throw new Error(`HF TTS ${res.status}`);
-            }
-            const data = await res.json();
-            const audioUrl = data.audio?.url;
-            if (!audioUrl) throw new Error('HF TTS sem URL de áudio');
-
-            const audioRes = await fetch(audioUrl);
-            if (!audioRes.ok) throw new Error(`download do áudio falhou (${audioRes.status})`);
-            const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
-            const mime = data.audio?.content_type || 'audio/wav';
-            console.log('✅ Áudio HF/Chatterbox:', audioBuffer.byteLength, 'bytes');
-            return { base64: audioBuffer.toString('base64'), mime };
-        } catch (error) {
-            console.error('❌ HF TTS Error:', error.message);
-        }
-    }
-
-    return null;
 }
 
 // Chat somente texto (o cliente pipelina o TTS por sentença)
@@ -301,7 +271,7 @@ if (!IS_VERCEL) {
 
    URL: http://localhost:${PORT}
    Chat: ${HF_TOKEN ? 'huggingface' : '✗ defina HF_TOKEN'}
-   TTS: ${elevenlabs ? 'elevenlabs' : (HF_TOKEN ? 'huggingface' : 'navegador')}
+   TTS: ${elevenlabs ? 'elevenlabs (pt-BR)' : 'navegador (pt-BR)'}
 `);
     });
 }
