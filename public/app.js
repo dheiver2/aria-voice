@@ -14,23 +14,15 @@ class ARIA {
         };
         
         this.settings = {
-            voice: 'francisca',
             speed: 0,
-            model: 'openai/gpt-4o-mini',
+            model: null, // definido pelo catálogo /api/models
             autoListen: true, // Reiniciar escuta após resposta
             bargeIn: true // Interromper a ARIA falando por cima
         };
         this.bargeInActive = false;
-        
+        this.models = [];
+
         this.recognition = null;
-        this.audio = new Audio();
-        // Ensure audio plays inline on mobile
-        try {
-            this.audio.setAttribute('playsinline', 'true');
-            this.audio.setAttribute('webkit-playsinline', 'true');
-            this.audio.playsInline = true;
-            this.audio.crossOrigin = 'anonymous';
-        } catch (e) {}
         this.speechTimeout = null;
         this.transcript = '';
         
@@ -56,7 +48,6 @@ class ARIA {
             orb: document.getElementById('orb'),
             settingsBtn: document.getElementById('settingsBtn'),
             settingsPanel: document.getElementById('settingsPanel'),
-            voiceSelect: document.getElementById('voiceSelect'),
             speedRange: document.getElementById('speedRange'),
             speedValue: document.getElementById('speedValue'),
             modelSelect: document.getElementById('modelSelect'),
@@ -265,35 +256,61 @@ class ARIA {
     }
     
     async loadSettings() {
+        // Configurações persistem no navegador
         try {
-            const res = await fetch('/api/settings');
+            const saved = JSON.parse(localStorage.getItem('aria-settings'));
+            if (saved) this.settings = { ...this.settings, ...saved };
+        } catch (e) {}
+        this.applySettings();
+        await this.loadModels();
+    }
+
+    saveSettings() {
+        try {
+            localStorage.setItem('aria-settings', JSON.stringify(this.settings));
+        } catch (e) {}
+    }
+
+    // Catálogo de modelos vem do servidor (fonte única da verdade)
+    async loadModels() {
+        try {
+            const res = await fetch('/api/models');
             const data = await res.json();
-            this.settings = { ...this.settings, ...data };
-            this.applySettings();
+            this.models = data.models || [];
+
+            if (this.$.modelSelect) {
+                const icons = { fast: '⚡', mid: '🧠', premium: '✨', free: '🆓' };
+                this.$.modelSelect.innerHTML = '';
+                this.models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = `${icons[m.tier] || ''} ${m.name}`.trim();
+                    this.$.modelSelect.appendChild(opt);
+                });
+            }
+
+            // Valida o modelo salvo contra o catálogo atual
+            if (!this.models.some(m => m.id === this.settings.model)) {
+                this.settings.model = data.current;
+                this.saveSettings();
+            }
+            if (this.$.modelSelect) this.$.modelSelect.value = this.settings.model;
+            this.updateModelBadgeName();
         } catch (e) {
-            console.warn('Usando configurações padrão');
+            console.warn('Catálogo de modelos indisponível');
         }
     }
-    
-    async saveSettings() {
-        try {
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.settings)
-            });
-        } catch (e) {
-            console.warn('Erro ao salvar');
-        }
+
+    updateModelBadgeName() {
+        const m = this.models.find(m => m.id === this.settings.model);
+        if (window.updateModelBadge) window.updateModelBadge(m ? m.name : '');
     }
-    
+
     applySettings() {
-        if (this.$.voiceSelect) this.$.voiceSelect.value = this.settings.voice;
         if (this.$.speedRange) {
             this.$.speedRange.value = this.settings.speed;
             this.updateSpeedLabel();
         }
-        if (this.$.modelSelect) this.$.modelSelect.value = this.settings.model;
     }
     
     updateSpeedLabel() {
@@ -691,7 +708,8 @@ class ARIA {
                 },
                 body: JSON.stringify({
                     message,
-                    sessionId: this.state.sessionId
+                    sessionId: this.state.sessionId,
+                    model: this.settings.model
                 }),
                 signal: controller.signal
             });
@@ -860,87 +878,6 @@ class ARIA {
         });
     }
 
-    // ============================================
-    // ÁUDIO ELEVENLABS TTS (voz ultra-natural)
-    // ============================================
-    
-    async playBase64Audio(base64, mime = 'audio/mpeg') {
-        return new Promise(async (resolve) => {
-            console.log('🎵 Preparando áudio, tamanho base64:', base64.length);
-            
-            this.state.speaking = true;
-            this.state.processing = false;
-            this.$.orb.classList.add('speaking');
-            
-            // No iOS, usar TTS nativo se áudio não foi desbloqueado
-            if (this.isIOS && !this.audioUnlocked) {
-                console.log('📱 iOS sem áudio desbloqueado, usando TTS');
-                await this.speakWithBrowser(this.lastResponse || '');
-                resolve();
-                return;
-            }
-            
-            // Sempre criar novo Audio
-            const audio = new Audio();
-            this.currentAudio = audio;
-            audio.setAttribute('playsinline', 'true'); // Importante para iOS
-            audio.setAttribute('webkit-playsinline', 'true');
-            try { audio.playsInline = true; audio.crossOrigin = 'anonymous'; } catch (e) {}
-            
-            // Converter base64 para blob
-            try {
-                const byteCharacters = atob(base64);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: mime });
-                const audioUrl = URL.createObjectURL(blob);
-                audio.src = audioUrl;
-            } catch (e) {
-                console.error('❌ Erro base64:', e);
-                audio.src = `data:${mime};base64,${base64}`;
-            }
-            
-            audio.volume = 1.0;
-            audio.preload = 'auto';
-            
-            const cleanup = () => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                this.stopBargeIn();
-                if (audio.src.startsWith('blob:')) {
-                    URL.revokeObjectURL(audio.src);
-                }
-            };
-            
-            audio.onended = () => {
-                console.log('🎵 Audio finalizado');
-                cleanup();
-                resolve();
-            };
-            
-            audio.onerror = async (e) => {
-                console.error('❌ Erro áudio:', e);
-                cleanup();
-                await this.speakWithBrowser(this.lastResponse || '');
-                resolve();
-            };
-            
-            try {
-                await audio.play();
-                console.log('▶️ Audio tocando');
-                this.startBargeIn();
-            } catch (e) {
-                console.error('❌ Erro play:', e.message);
-                cleanup();
-                await this.speakWithBrowser(this.lastResponse || '');
-                resolve();
-            }
-        });
-    }
-    
     // ============================================
     // TTS DO NAVEGADOR - FALLBACK
     // ============================================
@@ -1124,44 +1061,10 @@ class ARIA {
         });
     }
     
-    // ============================================
-    // ÁUDIO (Edge-TTS local)
-    // ============================================
-    
-    async playAudio(url) {
-        return new Promise((resolve) => {
-            this.state.speaking = true;
-            this.state.processing = false;
-            this.$.orb.classList.add('speaking');
-            
-            this.audio.src = url + '?t=' + Date.now();
-            
-            this.audio.onended = () => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                resolve();
-            };
-            
-            this.audio.onerror = () => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                resolve();
-            };
-            
-            this.audio.play().catch(() => {
-                this.state.speaking = false;
-                this.$.orb.classList.remove('speaking');
-                resolve();
-            });
-        });
-    }
     
     stopAudio() {
         // Cancela o pipeline de TTS (fetches pendentes e próximos trechos)
         if (this.ttsAbort) this.ttsAbort.abort();
-
-        this.audio.pause();
-        this.audio.currentTime = 0;
 
         // Parar o áudio em reprodução no momento (instância local do TTS)
         if (this.currentAudio) {
@@ -1225,12 +1128,6 @@ class ARIA {
             }
         });
         
-        // Voz
-        this.$.voiceSelect?.addEventListener('change', (e) => {
-            this.settings.voice = e.target.value;
-            this.saveSettings();
-        });
-        
         // Velocidade
         this.$.speedRange?.addEventListener('input', () => {
             this.settings.speed = parseInt(this.$.speedRange.value);
@@ -1242,6 +1139,7 @@ class ARIA {
         this.$.modelSelect?.addEventListener('change', (e) => {
             this.settings.model = e.target.value;
             this.saveSettings();
+            this.updateModelBadgeName();
         });
         
         // Toggle escuta automática

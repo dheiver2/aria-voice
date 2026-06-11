@@ -2065,31 +2065,13 @@
                 <div class="setting-card">
                     <label class="setting-label">Modelo de IA</label>
                     <select id="modelSelect">
-                        <option value="openai/gpt-4o-mini">⚡ GPT-4o Mini — Rápido</option>
-                        <option value="openai/gpt-4o">🧠 GPT-4o — Premium</option>
-                        <option value="anthropic/claude-3.5-sonnet">✨ Claude 3.5 Sonnet</option>
-                        <option value="anthropic/claude-3-haiku">🌸 Claude 3 Haiku — Rápido</option>
-                        <option value="meta-llama/llama-3.1-70b-instruct">🦙 Llama 3.1 70B</option>
-                        <option value="meta-llama/llama-3.1-8b-instruct">🆓 Llama 3.1 8B — Grátis</option>
-                        <option value="google/gemini-pro-1.5">💎 Gemini Pro 1.5</option>
-                        <option value="mistralai/mistral-7b-instruct">🌬 Mistral 7B — Grátis</option>
+                        <option value="">Carregando modelos…</option>
                     </select>
                 </div>
             </div>
             
             <div class="setting-section">
                 <div class="section-title">Voz</div>
-                <div class="setting-card">
-                    <label class="setting-label">Síntese Neural</label>
-                    <select id="voiceSelect">
-                        <option value="francisca">🇧🇷 Francisca — Feminina</option>
-                        <option value="thalita">🇧🇷 Thalita — Feminina</option>
-                        <option value="antonio">🇧🇷 Antonio — Masculina</option>
-                        <option value="jenny">🇺🇸 Jenny — English</option>
-                        <option value="guy">🇺🇸 Guy — English</option>
-                    </select>
-                </div>
-                
                 <div class="setting-card">
                     <label class="setting-label">Velocidade</label>
                     <div class="speed-slider">
@@ -2436,27 +2418,11 @@
         // ========================================
         // BADGE DO MODELO ATIVO
         // ========================================
+        // O app.js resolve o nome pelo catálogo /api/models
         const modelBadge = document.getElementById('modelBadge');
-        let modelNames = {};
-
-        function updateModelBadge(modelId) {
-            if (!modelBadge) return;
-            modelBadge.textContent = modelNames[modelId] || modelId || '';
-        }
-        window.updateModelBadge = updateModelBadge;
-
-        fetch('/api/models')
-            .then(r => r.json())
-            .then(data => {
-                (data.models || []).forEach(m => { modelNames[m.id] = m.name; });
-                const saved = window.aria?.settings?.model;
-                updateModelBadge(saved || data.current);
-            })
-            .catch(() => {});
-
-        document.getElementById('modelSelect')?.addEventListener('change', (e) => {
-            updateModelBadge(e.target.value);
-        });
+        window.updateModelBadge = (name) => {
+            if (modelBadge) modelBadge.textContent = name || '';
+        };
         
         // ========================================
         // ATALHOS DE TECLADO

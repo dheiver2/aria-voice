@@ -5,7 +5,7 @@
 > *"O propósito da ARIA é expandir a consciência dos seres humanos."*
 
 ![ARIA](https://img.shields.io/badge/ARIA-v5.0-00f5ff?style=for-the-badge)
-![OpenRouter](https://img.shields.io/badge/OpenRouter-Multi--Model-FF6B6B?style=for-the-badge)
+![HuggingFace](https://img.shields.io/badge/Hugging%20Face-Router-FFD21E?style=for-the-badge)
 
 ---
 
@@ -32,7 +32,7 @@ O orbe central representa a presença de ARIA:
 
 ## 🧠 Modelos de IA
 
-ARIA pode usar diferentes "mentes" via OpenRouter:
+ARIA pode usar diferentes "mentes" via Hugging Face Router:
 
 | Modelo | Personalidade |
 |--------|---------------|
@@ -47,8 +47,7 @@ ARIA pode usar diferentes "mentes" via OpenRouter:
 
 ### Requisitos
 - Node.js 18+
-- Token do [Hugging Face](https://huggingface.co/settings/tokens) (ou chave do OpenRouter)
-- Python 3 com Edge-TTS (`pip install edge-tts`)
+- Token do [Hugging Face](https://huggingface.co/settings/tokens)
 
 ### Instalação
 
@@ -60,7 +59,7 @@ cd aria-voice
 # Instale dependências
 npm install
 
-# Configure sua chave OpenRouter
+# Configure seu token Hugging Face
 echo "HF_TOKEN=seu_token_aqui" > .env
 
 # Inicie ARIA
@@ -102,7 +101,6 @@ Cada conversa é uma oportunidade de:
 
 ```bash
 npm install
-pip install edge-tts
 ```
 
 ### 2. Configurar API Key
@@ -111,8 +109,8 @@ Crie um arquivo `.env` na raiz do projeto:
 
 ```env
 HF_TOKEN=seu_token_huggingface
-# ou, alternativamente:
-# OPENROUTER_API_KEY=sua_chave_openrouter
+# Opcional (TTS premium):
+# ELEVENLABS_API_KEY=sua_chave
 PORT=3000
 ```
 
@@ -160,8 +158,8 @@ A interface usa um **orbe animado** que muda de cor conforme o estado:
 ## 🛠️ Tecnologias
 
 - **Backend**: Node.js + Express
-- **IA**: OpenRouter (acesso a múltiplos provedores)
-- **TTS**: Edge-TTS (Microsoft Neural Voices)
+- **IA**: Hugging Face Router (Llama, Qwen, DeepSeek)
+- **TTS**: ElevenLabs (premium) com fallback Chatterbox (HF) e voz do navegador
 - **Frontend**: HTML5 + CSS3 + JavaScript Vanilla
 - **Reconhecimento**: Web Speech API
 
@@ -169,7 +167,7 @@ A interface usa um **orbe animado** que muda de cor conforme o estado:
 
 ```
 aria-voice/
-├── server.js          # Servidor Express + OpenRouter API
+├── server.js          # Servidor Express + Hugging Face Router
 ├── package.json       # Dependências do projeto
 ├── .env               # Configurações (criar manualmente)
 └── public/
@@ -185,13 +183,12 @@ aria-voice/
 ## ⚠️ Requisitos
 
 - Node.js 18+ 
-- Python 3.8+ (para edge-tts)
 - Navegador moderno com suporte a Web Speech API (Chrome e Safari suportados)
-- Token do Hugging Face (HF_TOKEN) ou chave do OpenRouter
+- Token do Hugging Face (HF_TOKEN)
 
-## 💰 Custos OpenRouter
+## 💰 Custos
 
-OpenRouter cobra por tokens. Alguns modelos como Llama 3.1 8B são gratuitos. Veja preços em: https://openrouter.ai/models
+O chat usa créditos de inferência do Hugging Face (plano PRO inclui cota mensal). O TTS ElevenLabs cobra por caractere; sem chave, o app usa fallbacks gratuitos.
 
 ## 📝 Licença
 

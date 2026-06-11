@@ -14,16 +14,11 @@ const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 // ============================================
 const app = express();
 const PORT = process.env.PORT || 3000;
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const HF_TOKEN = process.env.HF_TOKEN;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const HF_CHAT_URL = 'https://router.huggingface.co/v1/chat/completions';
 const HF_TTS_URL = 'https://router.huggingface.co/fal-ai/fal-ai/chatterbox/text-to-speech';
 const IS_VERCEL = process.env.VERCEL === '1';
-
-// Provedor de chat: Hugging Face tem prioridade, OpenRouter como alternativa
-const CHAT_PROVIDER = HF_TOKEN ? 'huggingface' : (OPENROUTER_API_KEY ? 'openrouter' : null);
 
 // Cliente ElevenLabs
 let elevenlabs = null;
@@ -49,9 +44,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // DADOS EM MEMÓRIA (serverless-friendly)
 // ============================================
 const defaultSettings = {
-    voice: 'francisca',
     speed: 0,
-    model: CHAT_PROVIDER === 'openrouter' ? 'openai/gpt-4o-mini' : 'meta-llama/Llama-3.3-70B-Instruct'
+    model: 'meta-llama/Llama-3.3-70B-Instruct'
 };
 
 // Cache simples em memória (resetado a cada cold start)
@@ -60,36 +54,12 @@ const sessionHistory = new Map();
 // ============================================
 // MODELOS DISPONÍVEIS
 // ============================================
-const OPENROUTER_MODELS = {
-    'openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'fast' },
-    'openai/gpt-4o': { name: 'GPT-4o', tier: 'premium' },
-    'anthropic/claude-3.5-sonnet': { name: 'Claude 3.5 Sonnet', tier: 'premium' },
-    'anthropic/claude-3-haiku': { name: 'Claude 3 Haiku', tier: 'fast' },
-    'meta-llama/llama-3.1-70b-instruct': { name: 'Llama 3.1 70B', tier: 'mid' },
-    'meta-llama/llama-3.1-8b-instruct': { name: 'Llama 3.1 8B', tier: 'free' },
-    'google/gemini-pro-1.5': { name: 'Gemini Pro 1.5', tier: 'mid' },
-    'mistralai/mistral-7b-instruct': { name: 'Mistral 7B', tier: 'free' }
-};
-
 // Modelos testados no Hugging Face Router (OpenAI-compatible)
-const HF_MODELS = {
+const MODELS = {
     'meta-llama/Llama-3.1-8B-Instruct': { name: 'Llama 3.1 8B', tier: 'fast' },
     'meta-llama/Llama-3.3-70B-Instruct': { name: 'Llama 3.3 70B', tier: 'mid' },
     'Qwen/Qwen2.5-72B-Instruct': { name: 'Qwen 2.5 72B', tier: 'mid' },
     'deepseek-ai/DeepSeek-V3-0324': { name: 'DeepSeek V3', tier: 'premium' }
-};
-
-const MODELS = CHAT_PROVIDER === 'openrouter' ? OPENROUTER_MODELS : HF_MODELS;
-
-// ============================================
-// VOZES DISPONÍVEIS
-// ============================================
-const VOICES = {
-    francisca: 'pt-BR-FranciscaNeural',
-    thalita: 'pt-BR-ThalitaNeural',
-    antonio: 'pt-BR-AntonioNeural',
-    jenny: 'en-US-JennyNeural',
-    guy: 'en-US-GuyNeural'
 };
 
 // ============================================
@@ -144,20 +114,14 @@ async function chat(message, sessionId, model) {
         { role: 'user', content: message }
     ];
 
-    const isOpenRouter = CHAT_PROVIDER === 'openrouter';
-    const chatUrl = isOpenRouter ? OPENROUTER_URL : HF_CHAT_URL;
-    const apiKey = isOpenRouter ? OPENROUTER_API_KEY : HF_TOKEN;
-
-    // Garante um modelo válido para o provedor ativo
+    // Garante um modelo válido do catálogo
     const chosenModel = (model && MODELS[model]) ? model : defaultSettings.model;
 
-    const response = await fetch(chatUrl, {
+    const response = await fetch(HF_CHAT_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://aria-voice.vercel.app',
-            'X-Title': 'ARIA Voice'
+            'Authorization': `Bearer ${HF_TOKEN}`,
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
             model: chosenModel,
@@ -202,7 +166,7 @@ app.get('/api/health', (req, res) => {
         status: 'ok',
         version: '6.0.0',
         vercel: IS_VERCEL,
-        chat: CHAT_PROVIDER || 'none',
+        chat: HF_TOKEN ? 'huggingface' : 'none',
         tts: elevenlabs ? 'elevenlabs' : (HF_TOKEN ? 'huggingface' : 'browser')
     });
 });
@@ -264,56 +228,20 @@ async function generateSpeech(text) {
     return null;
 }
 
-// Chat principal
-app.post('/api/chat', async (req, res) => {
-    const start = Date.now();
-    
-    try {
-        const { message, sessionId = 'default', model, settings } = req.body;
-        
-        if (!message?.trim()) {
-            return res.status(400).json({ error: 'Mensagem vazia' });
-        }
-
-        if (!CHAT_PROVIDER) {
-            return res.status(500).json({ error: 'Nenhuma API key configurada (HF_TOKEN ou OPENROUTER_API_KEY)' });
-        }
-
-        const response = await chat(message, sessionId, model || settings?.model);
-
-        const speech = await generateSpeech(response);
-
-        const elapsed = Date.now() - start;
-        console.log(`💬 [${elapsed}ms] "${message.substring(0, 30)}..." → "${response.substring(0, 30)}..."`);
-
-        res.json({
-            response,
-            audioBase64: speech?.base64 || null,
-            audioMime: speech?.mime || null,
-            useBrowserTTS: !speech, // Usar navegador como fallback
-            time: elapsed
-        });
-
-    } catch (error) {
-        console.error('Erro:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Chat somente texto (o cliente pipelina o TTS por sentença)
 app.post('/api/chat-text', async (req, res) => {
     const start = Date.now();
     try {
-        const { message, sessionId = 'default', model, settings } = req.body;
+        const { message, sessionId = 'default', model } = req.body;
 
         if (!message?.trim()) {
             return res.status(400).json({ error: 'Mensagem vazia' });
         }
-        if (!CHAT_PROVIDER) {
-            return res.status(500).json({ error: 'Nenhuma API key configurada (HF_TOKEN ou OPENROUTER_API_KEY)' });
+        if (!HF_TOKEN) {
+            return res.status(500).json({ error: 'HF_TOKEN não configurado' });
         }
 
-        const response = await chat(message, sessionId, model || settings?.model);
+        const response = await chat(message, sessionId, model);
         const elapsed = Date.now() - start;
         console.log(`💬 [${elapsed}ms] texto "${message.substring(0, 30)}..."`);
 
@@ -339,22 +267,6 @@ app.post('/api/tts', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-});
-
-// Configurações
-app.get('/api/settings', (req, res) => {
-    res.json(defaultSettings);
-});
-
-app.post('/api/settings', (req, res) => {
-    const { voice, speed, model } = req.body;
-    
-    // Retorna as configurações recebidas (cliente mantém estado)
-    res.json({
-        voice: voice && VOICES[voice] ? voice : defaultSettings.voice,
-        speed: typeof speed === 'number' ? Math.max(-50, Math.min(50, speed)) : defaultSettings.speed,
-        model: model && MODELS[model] ? model : defaultSettings.model
-    });
 });
 
 // Modelos
@@ -388,7 +300,7 @@ if (!IS_VERCEL) {
 🎤 ARIA Voice v6.0
 
    URL: http://localhost:${PORT}
-   Chat: ${CHAT_PROVIDER || '✗ nenhum provedor (defina HF_TOKEN)'}
+   Chat: ${HF_TOKEN ? 'huggingface' : '✗ defina HF_TOKEN'}
    TTS: ${elevenlabs ? 'elevenlabs' : (HF_TOKEN ? 'huggingface' : 'navegador')}
 `);
     });
