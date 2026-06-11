@@ -1106,3 +1106,12 @@ class ARIA {
 document.addEventListener('DOMContentLoaded', () => {
     window.aria = new ARIA();
 });
+
+// Registrar service worker (PWA/offline)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+            console.log('Service worker não registrado:', err);
+        });
+    });
+}

@@ -146,8 +146,12 @@ async function chat(message, sessionId, model) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Erro na API');
+        let message = `Erro na API (${response.status})`;
+        try {
+            const error = await response.json();
+            message = error.error?.message || message;
+        } catch (e) {}
+        throw new Error(message);
     }
 
     const data = await response.json();
