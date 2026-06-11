@@ -683,9 +683,9 @@ class ARIA {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 45000); // chat + TTS podem levar vários segundos
             
-            const res = await fetch('/api/chat', {
+            const res = await fetch('/api/chat-text', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
@@ -695,40 +695,34 @@ class ARIA {
                 }),
                 signal: controller.signal
             });
-            
+
             clearTimeout(timeoutId);
-            
+
             if (!res.ok) {
                 const errorText = await res.text();
                 console.error('❌ API Error:', res.status, errorText);
                 throw new Error(`API Error: ${res.status}`);
             }
-            
+
             const data = await res.json();
-            console.log('📥 Resposta:', data.response?.substring(0, 50), 'Audio:', data.audioBase64?.length || 0);
-            
+            console.log('📥 Resposta:', data.response?.substring(0, 50), `[${data.time}ms]`);
+
             // Salvar resposta para fallback
             this.lastResponse = data.response;
-            
+
             // Adicionar ao histórico de conversas (UX)
             if (window.addChatMessage) {
                 window.addChatMessage(message, 'user');
                 window.addChatMessage(data.response, 'assistant');
             }
-            
+
             // Mostrar resposta brevemente
             this.showResponse(data.response);
-            
+
             this.$.orb.classList.remove('thinking');
-            
-            // Prioridade: ElevenLabs TTS (base64) > Browser TTS
-            if (data.audioBase64 && data.audioBase64.length > 0) {
-                console.log('🎵 Tocando áudio do servidor');
-                await this.playBase64Audio(data.audioBase64, data.audioMime || 'audio/mpeg');
-            } else {
-                console.log('🗣️ Usando TTS do navegador');
-                await this.speakWithBrowser(data.response);
-            }
+
+            // Pipeline: sintetiza por sentença em paralelo e toca em ordem
+            await this.speakPipelined(data.response);
             
             // Reiniciar escuta automaticamente se autoListen ativo
             if (this.settings.autoListen && !this.state.speaking) {
@@ -759,6 +753,113 @@ class ARIA {
         }
     }
     
+    // ============================================
+    // PIPELINE DE FALA: TTS por sentença, paralelo e ordenado
+    // ============================================
+
+    async speakPipelined(text) {
+        // iOS sem áudio desbloqueado: TTS nativo direto
+        if (this.isIOS && !this.audioUnlocked) {
+            return this.speakWithBrowser(text);
+        }
+
+        const sentences = this.splitTextIntoChunks(text, 180);
+        if (sentences.length === 0) return;
+
+        this.state.speaking = true;
+        this.state.processing = false;
+        this.$.orb.classList.add('speaking');
+        this.startBargeIn();
+
+        this.ttsAbort = new AbortController();
+        const signal = this.ttsAbort.signal;
+
+        // Promessas ordenadas: o consumidor toca i assim que i estiver pronto
+        const resolvers = [];
+        const ready = sentences.map(() => new Promise(r => resolvers.push(r)));
+
+        // Produtores com janela de concorrência (prefetch das próximas sentenças)
+        const MAX_CONCURRENT = 2;
+        let nextIdx = 0;
+        const worker = async () => {
+            while (nextIdx < sentences.length && !signal.aborted) {
+                const i = nextIdx++;
+                try {
+                    const r = await fetch('/api/tts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: sentences[i] }),
+                        signal
+                    });
+                    const d = r.ok ? await r.json() : null;
+                    resolvers[i](d?.audioBase64 ? d : null);
+                } catch (e) {
+                    resolvers[i](null);
+                }
+            }
+        };
+        for (let w = 0; w < MAX_CONCURRENT; w++) worker();
+
+        // Consumidor: reprodução sequencial; fallback por sentença no navegador
+        let browserVoice = null;
+        try {
+            for (let i = 0; i < sentences.length; i++) {
+                if (!this.state.speaking || signal.aborted) break;
+                const d = await ready[i];
+                if (!this.state.speaking || signal.aborted) break;
+
+                if (d) {
+                    await this.playChunkAudio(d.audioBase64, d.audioMime || 'audio/mpeg');
+                } else if ('speechSynthesis' in window) {
+                    if (!browserVoice) browserVoice = this.getBestFemaleVoice();
+                    await this.speakChunk(sentences[i], browserVoice);
+                }
+            }
+        } finally {
+            this.ttsAbort.abort();
+            this.state.speaking = false;
+            this.$.orb.classList.remove('speaking');
+            this.stopBargeIn();
+        }
+    }
+
+    // Toca um trecho de áudio; estado de fala é gerenciado pelo pipeline
+    playChunkAudio(base64, mime) {
+        return new Promise((resolve) => {
+            const audio = new Audio();
+            this.currentAudio = audio;
+            audio.setAttribute('playsinline', 'true');
+            audio.setAttribute('webkit-playsinline', 'true');
+            try { audio.playsInline = true; } catch (e) {}
+
+            try {
+                const bytes = atob(base64);
+                const arr = new Uint8Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+                audio.src = URL.createObjectURL(new Blob([arr], { type: mime }));
+            } catch (e) {
+                audio.src = `data:${mime};base64,${base64}`;
+            }
+
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
+                resolve();
+            };
+
+            audio.onended = finish;
+            audio.onerror = finish;
+            audio.onpause = () => {
+                // pausa manual (interrupção) encerra o trecho; fim natural dispara onended antes
+                if (audio.currentTime < audio.duration) finish();
+            };
+
+            audio.play().catch(finish);
+        });
+    }
+
     // ============================================
     // ÁUDIO ELEVENLABS TTS (voz ultra-natural)
     // ============================================
@@ -1056,6 +1157,9 @@ class ARIA {
     }
     
     stopAudio() {
+        // Cancela o pipeline de TTS (fetches pendentes e próximos trechos)
+        if (this.ttsAbort) this.ttsAbort.abort();
+
         this.audio.pause();
         this.audio.currentTime = 0;
 

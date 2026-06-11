@@ -300,6 +300,47 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
+// Chat somente texto (o cliente pipelina o TTS por sentença)
+app.post('/api/chat-text', async (req, res) => {
+    const start = Date.now();
+    try {
+        const { message, sessionId = 'default', model, settings } = req.body;
+
+        if (!message?.trim()) {
+            return res.status(400).json({ error: 'Mensagem vazia' });
+        }
+        if (!CHAT_PROVIDER) {
+            return res.status(500).json({ error: 'Nenhuma API key configurada (HF_TOKEN ou OPENROUTER_API_KEY)' });
+        }
+
+        const response = await chat(message, sessionId, model || settings?.model);
+        const elapsed = Date.now() - start;
+        console.log(`💬 [${elapsed}ms] texto "${message.substring(0, 30)}..."`);
+
+        res.json({ response, time: elapsed });
+    } catch (error) {
+        console.error('Erro:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// TTS de um trecho (uma sentença do pipeline)
+app.post('/api/tts', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text?.trim()) {
+            return res.status(400).json({ error: 'Texto vazio' });
+        }
+        const speech = await generateSpeech(text.slice(0, 600));
+        res.json({
+            audioBase64: speech?.base64 || null,
+            audioMime: speech?.mime || null
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Configurações
 app.get('/api/settings', (req, res) => {
     res.json(defaultSettings);
