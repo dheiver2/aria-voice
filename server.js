@@ -22,8 +22,8 @@ const HF_CHAT_URL = 'https://router.huggingface.co/v1/chat/completions';
 const HF_TTS_URL = 'https://router.huggingface.co/fal-ai/fal-ai/chatterbox/text-to-speech';
 const IS_VERCEL = process.env.VERCEL === '1';
 
-// Provedor de chat: OpenRouter tem prioridade se configurado, senão Hugging Face
-const CHAT_PROVIDER = OPENROUTER_API_KEY ? 'openrouter' : (HF_TOKEN ? 'huggingface' : null);
+// Provedor de chat: Hugging Face tem prioridade, OpenRouter como alternativa
+const CHAT_PROVIDER = HF_TOKEN ? 'huggingface' : (OPENROUTER_API_KEY ? 'openrouter' : null);
 
 // Cliente ElevenLabs
 let elevenlabs = null;
