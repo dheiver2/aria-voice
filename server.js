@@ -8,6 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 // ============================================
 // CONFIGURAÇÃO
@@ -27,6 +28,12 @@ if (ELEVENLABS_API_KEY) {
 
 // Voz ElevenLabs (sobreponível por env). language_code força pt-BR na síntese.
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+
+// Voz neural feminina pt-BR gratuita (Microsoft Edge TTS)
+const EDGE_VOICE = process.env.EDGE_TTS_VOICE || 'pt-BR-ThalitaMultilingualNeural';
+
+// Desativa ElevenLabs no processo após erro de cota (evita 1 chamada perdida por sentença)
+let elevenLabsDisabled = false;
 
 // ============================================
 // MIDDLEWARE
@@ -166,40 +173,70 @@ app.get('/api/health', (req, res) => {
         version: '6.0.0',
         vercel: IS_VERCEL,
         chat: HF_TOKEN ? 'huggingface' : 'none',
-        tts: elevenlabs ? 'elevenlabs-ptbr' : 'browser-ptbr'
+        tts: (elevenlabs && !elevenLabsDisabled) ? 'elevenlabs-ptbr' : 'edge-thalita-ptbr'
     });
 });
 
-// TTS: ElevenLabs em pt-BR → null (cliente usa a voz pt-BR do navegador)
+// TTS pt-BR: ElevenLabs → Edge Neural (Thalita, grátis) → null (voz do navegador)
 // Retorna { base64, mime } ou null
 async function generateSpeech(text) {
-    if (!elevenlabs) return null;
+    if (elevenlabs && !elevenLabsDisabled) {
+        try {
+            const audio = await elevenlabs.textToSpeech.convert(
+                DEFAULT_VOICE_ID,
+                {
+                    text: text,
+                    modelId: 'eleven_turbo_v2_5',
+                    languageCode: 'pt', // força português na síntese
+                    outputFormat: 'mp3_44100_128'
+                }
+            );
+            const chunks = [];
+            for await (const chunk of audio) {
+                chunks.push(chunk);
+            }
+            const audioBuffer = Buffer.concat(chunks);
+            console.log('✅ Áudio ElevenLabs pt-BR:', audioBuffer.byteLength, 'bytes');
+            return { base64: audioBuffer.toString('base64'), mime: 'audio/mpeg' };
+        } catch (error) {
+            const detail = error?.body ? JSON.stringify(error.body) : error.message;
+            console.error('❌ ElevenLabs Error:', detail);
+            if (detail.includes('quota_exceeded')) elevenLabsDisabled = true;
+            // cai para o Edge TTS
+        }
+    }
 
     try {
-        const audio = await elevenlabs.textToSpeech.convert(
-            DEFAULT_VOICE_ID,
-            {
-                text: text,
-                modelId: 'eleven_turbo_v2_5',
-                languageCode: 'pt', // força português na síntese
-                outputFormat: 'mp3_44100_128'
-            }
-        );
-        const chunks = [];
-        for await (const chunk of audio) {
-            chunks.push(chunk);
-        }
-        const audioBuffer = Buffer.concat(chunks);
-        console.log('✅ Áudio ElevenLabs pt-BR:', audioBuffer.byteLength, 'bytes');
-        return { base64: audioBuffer.toString('base64'), mime: 'audio/mpeg' };
+        return await edgeSpeech(text);
     } catch (error) {
-        const detail = error?.body ? JSON.stringify(error.body) : error.message;
-        console.error('❌ ElevenLabs Error:', detail);
-        lastTtsError = detail;
+        console.error('❌ Edge TTS Error:', error.message);
         return null; // cliente cai para a voz pt-BR do navegador
     }
 }
-let lastTtsError = null;
+
+// Microsoft Edge TTS: voz neural feminina pt-BR, sem chave
+function edgeSpeech(text) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const tts = new MsEdgeTTS();
+            await tts.setMetadata(EDGE_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+            const { audioStream } = tts.toStream(text);
+            const chunks = [];
+            const timer = setTimeout(() => reject(new Error('Edge TTS timeout')), 15000);
+            audioStream.on('data', c => chunks.push(c));
+            audioStream.on('end', () => {
+                clearTimeout(timer);
+                const buf = Buffer.concat(chunks);
+                if (!buf.length) return reject(new Error('Edge TTS vazio'));
+                console.log('✅ Áudio Edge/Thalita pt-BR:', buf.length, 'bytes');
+                resolve({ base64: buf.toString('base64'), mime: 'audio/mpeg' });
+            });
+            audioStream.on('error', err => { clearTimeout(timer); reject(err); });
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
 
 // Chat somente texto (o cliente pipelina o TTS por sentença)
 app.post('/api/chat-text', async (req, res) => {
@@ -235,8 +272,7 @@ app.post('/api/tts', async (req, res) => {
         const speech = await generateSpeech(text.slice(0, 600));
         res.json({
             audioBase64: speech?.base64 || null,
-            audioMime: speech?.mime || null,
-            ...(req.body.debug ? { debugError: lastTtsError } : {})
+            audioMime: speech?.mime || null
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
