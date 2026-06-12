@@ -1814,6 +1814,129 @@
                 display: none !important;
             }
         }
+        /* ===== Paleta da marca (símbolo) ===== */
+        :root {
+            --primary: #FF7A1A;
+            --primary-dim: #E94A12;
+            --primary-glow: rgba(255, 122, 26, 0.55);
+            --secondary: #FFD83D;
+            --secondary-dim: #d9b021;
+            --secondary-glow: rgba(255, 216, 61, 0.5);
+            --tertiary: #7BBF26;
+            --tertiary-glow: rgba(123, 191, 38, 0.5);
+            --gold: #FFD83D;
+            --gold-glow: rgba(255, 216, 61, 0.6);
+            --success: #7BBF26;
+            --warning: #FFD83D;
+            --danger: #E94A12;
+
+            --bg-deep: #170D06;
+            --bg: #23130A;
+            --bg-elevated: #311B0E;
+        }
+
+        [data-theme="light"] {
+            --primary: #E94A12;
+            --primary-dim: #c23d0e;
+            --primary-glow: rgba(233, 74, 18, 0.35);
+            --secondary: #FF7A1A;
+            --tertiary: #689924;
+            --bg-deep: #FFFCF0;
+            --bg: #FFFAE8;
+            --bg-elevated: #FFDFCC;
+        }
+
+        /* ===== Tela de Login ===== */
+        .login-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 9000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(150deg, #FFFCF0 0%, #FFDFCC 100%);
+            padding: 24px;
+        }
+        .login-screen.hidden { display: none; }
+        .login-card {
+            width: 100%;
+            max-width: 360px;
+            background: #FFFCF0;
+            border: 1px solid rgba(233, 74, 18, 0.18);
+            border-radius: 24px;
+            box-shadow: 0 24px 60px rgba(57, 65, 11, 0.18);
+            padding: 36px 32px;
+            text-align: center;
+        }
+        .login-logo {
+            width: 96px;
+            height: auto;
+            border-radius: 20px;
+            margin-bottom: 18px;
+        }
+        .login-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #23330C;
+            margin-bottom: 4px;
+            letter-spacing: 0.02em;
+        }
+        .login-sub {
+            font-size: 13px;
+            color: #689924;
+            margin-bottom: 26px;
+        }
+        .login-field {
+            width: 100%;
+            margin-bottom: 14px;
+            padding: 13px 16px;
+            border-radius: 12px;
+            border: 1.5px solid #FFDFCC;
+            background: #fff;
+            color: #23330C;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+        .login-field:focus {
+            border-color: #FF7A1A;
+            box-shadow: 0 0 0 3px rgba(255, 122, 26, 0.18);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 6px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #FFD83D 0%, #FF7A1A 55%, #E94A12 100%);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.2s;
+            box-shadow: 0 10px 24px rgba(233, 74, 18, 0.35);
+        }
+        .login-btn:hover { transform: translateY(-1px); }
+        .login-btn:active { transform: translateY(1px); }
+        .login-btn:disabled { opacity: 0.6; cursor: wait; }
+        .login-error {
+            min-height: 18px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #E94A12;
+        }
+        .logout-link {
+            background: none;
+            border: none;
+            color: var(--danger, #E94A12);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 10px;
+        }
+
         /* ===== Melhorias UI/UX ===== */
         #orb { touch-action: manipulation; }
 
@@ -1901,6 +2024,19 @@
     </style>
 </head>
 <body>
+    <!-- Tela de Login -->
+    <div class="login-screen hidden" id="loginScreen">
+        <form class="login-card" id="loginForm">
+            <img src="/logo.svg" alt="ARIA" class="login-logo">
+            <div class="login-title">ARIA Voice</div>
+            <div class="login-sub">Entre para conversar com a ARIA</div>
+            <input class="login-field" id="loginUser" type="text" placeholder="Usuário" autocomplete="username" required>
+            <input class="login-field" id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" required>
+            <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
+            <div class="login-error" id="loginError"></div>
+        </form>
+    </div>
+
     <!-- Cosmos de fundo -->
     <div class="cosmos">
         <div class="nebula nebula-1"></div>
@@ -2111,6 +2247,7 @@
             
             <div class="setting-section">
                 <div class="section-title">Sessão</div>
+                <button id="logoutBtn" class="logout-link" type="button">Sair da conta</button>
                 <button id="clearBtn" class="action-btn danger">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>

@@ -7,6 +7,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
@@ -34,6 +35,39 @@ const EDGE_VOICE = process.env.EDGE_TTS_VOICE || 'pt-BR-ThalitaMultilingualNeura
 
 // Desativa ElevenLabs no processo após erro de cota (evita 1 chamada perdida por sentença)
 let elevenLabsDisabled = false;
+
+// ============================================
+// AUTENTICAÇÃO (login + senha via env)
+// ============================================
+const AUTH_USER = process.env.AUTH_USER || 'aria';
+const AUTH_PASS = process.env.AUTH_PASS || 'aria123';
+const AUTH_SECRET = process.env.AUTH_SECRET || AUTH_PASS + '::aria-voice';
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
+
+function signToken(user) {
+    const exp = Date.now() + TOKEN_TTL_MS;
+    const payload = `${user}|${exp}`;
+    const sig = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
+    return Buffer.from(`${payload}|${sig}`).toString('base64url');
+}
+
+function verifyToken(token) {
+    try {
+        const [user, exp, sig] = Buffer.from(token, 'base64url').toString().split('|');
+        if (!user || !exp || !sig) return false;
+        if (Date.now() > Number(exp)) return false;
+        const expected = crypto.createHmac('sha256', AUTH_SECRET).update(`${user}|${exp}`).digest('hex');
+        return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    } catch (e) {
+        return false;
+    }
+}
+
+function requireAuth(req, res, next) {
+    const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (token && verifyToken(token)) return next();
+    res.status(401).json({ error: 'Não autorizado' });
+}
 
 // ============================================
 // MIDDLEWARE
@@ -238,8 +272,19 @@ function edgeSpeech(text) {
     });
 }
 
+// Login
+app.post('/api/login', (req, res) => {
+    const { user, password } = req.body || {};
+    const userOk = typeof user === 'string' && user.trim().toLowerCase() === AUTH_USER.toLowerCase();
+    const passOk = typeof password === 'string' && password === AUTH_PASS;
+    if (!userOk || !passOk) {
+        return res.status(401).json({ error: 'Usuário ou senha incorretos' });
+    }
+    res.json({ token: signToken(AUTH_USER), user: AUTH_USER });
+});
+
 // Chat somente texto (o cliente pipelina o TTS por sentença)
-app.post('/api/chat-text', async (req, res) => {
+app.post('/api/chat-text', requireAuth, async (req, res) => {
     const start = Date.now();
     try {
         const { message, sessionId = 'default', model } = req.body;
@@ -263,7 +308,7 @@ app.post('/api/chat-text', async (req, res) => {
 });
 
 // TTS de um trecho (uma sentença do pipeline)
-app.post('/api/tts', async (req, res) => {
+app.post('/api/tts', requireAuth, async (req, res) => {
     try {
         const { text } = req.body;
         if (!text?.trim()) {
@@ -288,7 +333,7 @@ app.get('/api/models', (req, res) => {
 });
 
 // Limpar conversa
-app.post('/api/clear', (req, res) => {
+app.post('/api/clear', requireAuth, (req, res) => {
     const { sessionId } = req.body;
     if (sessionId) {
         sessionHistory.delete(sessionId);

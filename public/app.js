@@ -3,6 +3,24 @@
  * Versão 5.0 - Sistema limpo e refatorado
  */
 
+// ============================================
+// AUTENTICAÇÃO
+// ============================================
+const AUTH_TOKEN_KEY = 'aria-token';
+
+async function apiFetch(url, options = {}) {
+    options.headers = {
+        ...(options.headers || {}),
+        'Authorization': `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY) || ''}`
+    };
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        if (window.showLogin) window.showLogin();
+        throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    return res;
+}
+
 class ARIA {
     constructor() {
         this.state = {
@@ -700,7 +718,7 @@ class ARIA {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 45000); // chat + TTS podem levar vários segundos
             
-            const res = await fetch('/api/chat-text', {
+            const res = await apiFetch('/api/chat-text', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -803,7 +821,7 @@ class ARIA {
             while (nextIdx < sentences.length && !signal.aborted) {
                 const i = nextIdx++;
                 try {
-                    const r = await fetch('/api/tts', {
+                    const r = await apiFetch('/api/tts', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ text: sentences[i] }),
@@ -1172,7 +1190,7 @@ class ARIA {
         this.$.clearBtn?.addEventListener('click', async () => {
             if (!confirm('Apagar toda a conversa?')) return;
             try {
-                await fetch('/api/clear', {
+                await apiFetch('/api/clear', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessionId: this.state.sessionId })
@@ -1198,8 +1216,57 @@ class ARIA {
     }
 }
 
+// ============================================
+// TELA DE LOGIN
+// ============================================
+function setupLogin() {
+    const screen = document.getElementById('loginScreen');
+    const form = document.getElementById('loginForm');
+    const errorEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    if (!screen || !form) return;
+
+    window.showLogin = () => screen.classList.remove('hidden');
+
+    if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+        window.showLogin();
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.textContent = '';
+        btn.disabled = true;
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user: document.getElementById('loginUser').value,
+                    password: document.getElementById('loginPass').value
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Falha no login');
+            localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+            screen.classList.add('hidden');
+        } catch (err) {
+            errorEl.textContent = err.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // Sair
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        window.showLogin();
+        document.getElementById('settingsPanel')?.classList.remove('open');
+    });
+}
+
 // Inicializar
 document.addEventListener('DOMContentLoaded', () => {
+    setupLogin();
     window.aria = new ARIA();
 });
 
