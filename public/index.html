@@ -1938,9 +1938,12 @@
         }
 
         /* ===== Melhorias UI/UX ===== */
+        .top-panel .brand { margin-right: 112px; }
+        @media (max-width: 600px) { .top-panel .brand { margin-right: 96px; } }
+
         #orb { touch-action: manipulation; }
 
-        .status-label {
+        .voice-status {
             position: fixed;
             bottom: calc(96px + env(safe-area-inset-bottom, 0px));
             left: 50%;
@@ -1953,7 +1956,7 @@
             transition: opacity 0.3s, color 0.3s;
             z-index: 50;
         }
-        .status-label.active { color: var(--accent, #6de3ff); }
+        .voice-status.active { color: var(--primary, #FF7A1A); }
 
         .model-badge {
             position: fixed;
@@ -2019,7 +2022,7 @@
                 min-width: 44px;
                 min-height: 44px;
             }
-            .status-label { font-size: 13px; }
+            .voice-status { font-size: 13px; }
         }
     </style>
 </head>
@@ -2099,7 +2102,7 @@
             <div class="audio-visualizer" id="visualizer"></div>
 
             <!-- Rótulo de status (acessível) -->
-            <div class="status-label" id="statusLabel" role="status" aria-live="polite">Toque no orbe para falar</div>
+            <div class="voice-status" id="statusLabel" role="status" aria-live="polite">Toque no orbe para falar</div>
             
             <!-- Métricas -->
             <div class="metrics-panel">
