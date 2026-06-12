@@ -1256,11 +1256,12 @@ function setupLogin() {
         }
     });
 
-    // Sair
-    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    // Sair — delegação no documento (robusto) + reload para zerar o estado
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#logoutBtn')) return;
+        e.preventDefault();
         localStorage.removeItem(AUTH_TOKEN_KEY);
-        window.showLogin();
-        document.getElementById('settingsPanel')?.classList.remove('open');
+        window.location.reload();
     });
 }
 
