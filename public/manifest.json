@@ -2,7 +2,7 @@
     "name": "ARIA - Expandindo Consciências",
     "short_name": "ARIA",
     "description": "Assistente de Realidade e Inteligência Ampliada - Expandindo a consciência humana através de diálogos transformadores",
-    "start_url": "/",
+    "start_url": "/app",
     "display": "standalone",
     "background_color": "#0a0a1a",
     "theme_color": "#00f5ff",

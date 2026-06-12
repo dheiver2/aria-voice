@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ARIA Voice — Sua assistente de voz com IA em português</title>
+    <meta name="description" content="Converse por voz com inteligência artificial em português do Brasil. Voz neural natural, respostas inteligentes e interrupção por voz, direto do navegador.">
+    <link rel="icon" href="/favicon.svg">
+    <style>
+        :root {
+            --orange: #E94A12;
+            --orange-light: #FF7A1A;
+            --yellow: #FFD83D;
+            --yellow-soft: #FFE498;
+            --green: #7BBF26;
+            --green-dark: #689924;
+            --ink: #23330C;
+            --ink-soft: #39410B;
+            --cream: #FFFCF0;
+            --cream-2: #FFFAE8;
+            --peach: #FFDFCC;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            color: var(--ink);
+            background: var(--cream);
+            line-height: 1.6;
+        }
+        .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+        /* Header */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(255, 252, 240, 0.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(233, 74, 18, 0.12);
+        }
+        .nav {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 0;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+        .brand img { width: 42px; height: auto; border-radius: 10px; }
+        .brand b { font-size: 18px; letter-spacing: 0.02em; }
+        .nav a.cta {
+            background: linear-gradient(135deg, var(--yellow) 0%, var(--orange-light) 55%, var(--orange) 100%);
+            color: #fff; text-decoration: none; font-weight: 700;
+            padding: 10px 22px; border-radius: 999px;
+            box-shadow: 0 8px 20px rgba(233, 74, 18, 0.3);
+            transition: transform 0.15s;
+        }
+        .nav a.cta:hover { transform: translateY(-1px); }
+
+        /* Hero */
+        .hero {
+            background: linear-gradient(160deg, var(--cream) 0%, var(--peach) 100%);
+            padding: 80px 0 70px;
+            text-align: center;
+        }
+        .hero img.logo { width: 130px; height: auto; border-radius: 28px; box-shadow: 0 20px 50px rgba(57, 65, 11, 0.2); margin-bottom: 28px; }
+        .hero h1 {
+            font-size: clamp(32px, 5.5vw, 54px);
+            line-height: 1.15; font-weight: 800; letter-spacing: -0.02em;
+            max-width: 760px; margin: 0 auto 18px;
+        }
+        .hero h1 em {
+            font-style: normal;
+            background: linear-gradient(90deg, var(--orange) 0%, var(--orange-light) 60%, var(--green) 130%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .hero p.sub {
+            font-size: clamp(16px, 2.2vw, 20px);
+            color: var(--ink-soft); max-width: 620px; margin: 0 auto 36px;
+        }
+        .hero .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--yellow) 0%, var(--orange-light) 55%, var(--orange) 100%);
+            color: #fff; text-decoration: none; font-weight: 800; font-size: 18px;
+            padding: 16px 38px; border-radius: 999px;
+            box-shadow: 0 14px 32px rgba(233, 74, 18, 0.35);
+            transition: transform 0.15s;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-ghost {
+            color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px;
+            padding: 16px 32px; border-radius: 999px;
+            border: 2px solid rgba(233, 74, 18, 0.35);
+            transition: background 0.2s;
+        }
+        .btn-ghost:hover { background: rgba(233, 74, 18, 0.07); }
+        .hero .hint { margin-top: 18px; font-size: 13px; color: var(--green-dark); }
+
+        /* Sections */
+        section { padding: 76px 0; }
+        .section-title { text-align: center; font-size: clamp(26px, 3.6vw, 36px); font-weight: 800; margin-bottom: 10px; }
+        .section-sub { text-align: center; color: var(--ink-soft); max-width: 560px; margin: 0 auto 48px; }
+
+        /* Features */
+        .features { background: var(--cream-2); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; }
+        .card {
+            background: #fff; border: 1px solid rgba(233, 74, 18, 0.12);
+            border-radius: 20px; padding: 28px 24px;
+            box-shadow: 0 8px 24px rgba(57, 65, 11, 0.06);
+        }
+        .card .icon {
+            width: 46px; height: 46px; border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--yellow-soft), var(--peach));
+        }
+        .card h3 { font-size: 18px; margin-bottom: 8px; }
+        .card p { font-size: 14.5px; color: var(--ink-soft); }
+
+        /* Steps */
+        .steps .grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        .step { text-align: center; padding: 10px; }
+        .step .num {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 14px; font-weight: 800; font-size: 20px; color: #fff;
+            background: linear-gradient(135deg, var(--orange-light), var(--orange));
+            box-shadow: 0 8px 20px rgba(233, 74, 18, 0.3);
+        }
+        .step h3 { font-size: 17px; margin-bottom: 6px; }
+        .step p { font-size: 14px; color: var(--ink-soft); }
+
+        /* Pricing */
+        .pricing { background: linear-gradient(160deg, var(--cream-2) 0%, var(--peach) 100%); }
+        .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; max-width: 860px; margin: 0 auto; }
+        .plan {
+            background: #fff; border-radius: 24px; padding: 36px 30px;
+            border: 1px solid rgba(233, 74, 18, 0.14);
+            box-shadow: 0 14px 36px rgba(57, 65, 11, 0.08);
+            display: flex; flex-direction: column;
+        }
+        .plan.featured { border: 2px solid var(--orange-light); position: relative; }
+        .plan.featured .tag {
+            position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--yellow), var(--orange-light));
+            color: #fff; font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+            padding: 5px 16px; border-radius: 999px;
+        }
+        .plan h3 { font-size: 19px; margin-bottom: 6px; }
+        .plan .price { font-size: 38px; font-weight: 800; margin-bottom: 2px; }
+        .plan .price small { font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+        .plan ul { list-style: none; margin: 22px 0 28px; flex: 1; }
+        .plan li { font-size: 14.5px; color: var(--ink-soft); padding: 7px 0; padding-left: 26px; position: relative; }
+        .plan li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+        .plan a {
+            text-align: center; text-decoration: none; font-weight: 800;
+            padding: 13px; border-radius: 12px; transition: transform 0.15s;
+        }
+        .plan a.solid { background: linear-gradient(135deg, var(--yellow), var(--orange-light) 55%, var(--orange)); color: #fff; box-shadow: 0 10px 24px rgba(233, 74, 18, 0.3); }
+        .plan a.line { border: 2px solid rgba(233, 74, 18, 0.3); color: var(--ink); }
+        .plan a:hover { transform: translateY(-1px); }
+
+        /* CTA final */
+        .cta-final { text-align: center; }
+        .cta-final .box {
+            background: linear-gradient(135deg, var(--ink) 0%, var(--ink-soft) 100%);
+            border-radius: 28px; padding: 60px 30px; color: var(--cream);
+        }
+        .cta-final h2 { font-size: clamp(24px, 3.4vw, 34px); margin-bottom: 12px; }
+        .cta-final p { color: var(--yellow-soft); margin-bottom: 30px; }
+
+        footer { padding: 36px 0 46px; text-align: center; font-size: 13px; color: var(--ink-soft); }
+        footer a { color: var(--orange); text-decoration: none; }
+
+        @media (max-width: 560px) {
+            .hero { padding: 56px 0 50px; }
+            section { padding: 56px 0; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container nav">
+            <a class="brand" href="/">
+                <img src="/logo.svg" alt="ARIA">
+                <b>ARIA Voice</b>
+            </a>
+            <a class="cta" href="/app">Entrar no app</a>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <img class="logo" src="/logo.svg" alt="Símbolo ARIA Voice">
+            <h1>Converse por voz com uma <em>IA que fala português</em> de verdade</h1>
+            <p class="sub">A ARIA escuta, pensa e responde com voz neural natural em pt-BR — direto do navegador, sem instalar nada. Interrompa falando por cima, como numa conversa real.</p>
+            <div class="actions">
+                <a class="btn-primary" href="/app">Começar agora — é grátis</a>
+                <a class="btn-ghost" href="#recursos">Conhecer recursos</a>
+            </div>
+            <div class="hint">Funciona no Chrome, Safari e no seu celular · Sem cartão de crédito</div>
+        </div>
+    </section>
+
+    <section class="features" id="recursos">
+        <div class="container">
+            <h2 class="section-title">Por que a ARIA?</h2>
+            <p class="section-sub">Tecnologia de ponta com a experiência de uma conversa natural.</p>
+            <div class="grid">
+                <div class="card">
+                    <div class="icon">🎙️</div>
+                    <h3>Voz neural em pt-BR</h3>
+                    <p>Síntese de voz feminina natural em português do Brasil. Nada de sotaque estrangeiro ou voz robótica.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">⚡</div>
+                    <h3>Resposta em segundos</h3>
+                    <p>Pipeline de streaming: a ARIA começa a falar enquanto ainda formula o resto da resposta.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🖐️</div>
+                    <h3>Interrupção por voz</h3>
+                    <p>Fale por cima para interromper, como numa conversa de verdade. Ela para e te escuta na hora.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🧠</div>
+                    <h3>Modelos de ponta</h3>
+                    <p>Escolha entre Llama 3.3, Qwen 2.5 e DeepSeek V3 — os melhores modelos abertos do mundo.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🔒</div>
+                    <h3>Acesso protegido</h3>
+                    <p>Login com senha e sessão segura. Suas conversas ficam no seu navegador.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">📱</div>
+                    <h3>Instale como app</h3>
+                    <p>PWA pronto: adicione à tela inicial do iPhone ou Android e use como aplicativo.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="steps">
+        <div class="container">
+            <h2 class="section-title">Como funciona</h2>
+            <p class="section-sub">Três passos e você está conversando.</p>
+            <div class="grid">
+                <div class="step">
+                    <div class="num">1</div>
+                    <h3>Entre no app</h3>
+                    <p>Acesse pelo navegador e faça login. Sem download, sem configuração.</p>
+                </div>
+                <div class="step">
+                    <div class="num">2</div>
+                    <h3>Toque no orbe</h3>
+                    <p>Permita o microfone e fale naturalmente, em português.</p>
+                </div>
+                <div class="step">
+                    <div class="num">3</div>
+                    <h3>Converse</h3>
+                    <p>A ARIA responde por voz em segundos. Interrompa quando quiser.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing" id="planos">
+        <div class="container">
+            <h2 class="section-title">Planos</h2>
+            <p class="section-sub">Comece grátis. Evolua quando precisar.</p>
+            <div class="plans">
+                <div class="plan">
+                    <h3>Pessoal</h3>
+                    <div class="price">R$ 0 <small>/mês</small></div>
+                    <ul>
+                        <li>Conversas por voz ilimitadas</li>
+                        <li>Voz neural pt-BR</li>
+                        <li>Modelos Llama e Qwen</li>
+                        <li>Histórico no navegador</li>
+                    </ul>
+                    <a class="line" href="/app">Usar grátis</a>
+                </div>
+                <div class="plan featured">
+                    <div class="tag">EM BREVE</div>
+                    <h3>Profissional</h3>
+                    <div class="price">R$ 29 <small>/mês</small></div>
+                    <ul>
+                        <li>Tudo do plano Pessoal</li>
+                        <li>Voz premium ElevenLabs</li>
+                        <li>DeepSeek V3 prioritário</li>
+                        <li>Memória entre sessões</li>
+                        <li>Suporte dedicado</li>
+                    </ul>
+                    <a class="solid" href="mailto:dheiver.santos@gmail.com?subject=ARIA%20Voice%20Profissional">Entrar na lista</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-final">
+        <div class="container">
+            <div class="box">
+                <h2>Pronto para conversar com o futuro?</h2>
+                <p>Leva menos de um minuto para começar.</p>
+                <a class="btn-primary" href="/app">Abrir a ARIA agora</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            ARIA Voice © 2026 · Feito no Brasil 🇧🇷 · <a href="mailto:dheiver.santos@gmail.com">Contato</a>
+        </div>
+    </footer>
+</body>
+</html>

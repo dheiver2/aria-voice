@@ -1,10 +1,13 @@
-const CACHE_NAME = 'aria-voice-v7';
+const CACHE_NAME = 'aria-voice-v8';
 const ASSETS = [
     '/',
+    '/app',
     '/index.html',
+    '/landing.html',
     '/app.js',
     '/manifest.json',
-    '/favicon.svg'
+    '/favicon.svg',
+    '/logo.svg'
 ];
 
 // Limpar caches antigos
@@ -36,7 +39,7 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Network-first para HTML/app.js (evita versões velhas presas no cache)
-    const isCore = url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/app.js';
+    const isCore = ['/', '/app', '/index.html', '/landing.html', '/app.js'].includes(url.pathname);
     if (isCore) {
         event.respondWith(
             fetch(event.request)

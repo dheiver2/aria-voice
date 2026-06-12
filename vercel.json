@@ -30,8 +30,18 @@
       }
     },
     {
+      "src": "/app",
+      "dest": "/public/index.html",
+      "headers": {
+        "Cache-Control": "no-cache, must-revalidate"
+      }
+    },
+    {
       "src": "/(.*)",
-      "dest": "/public/index.html"
+      "dest": "/public/landing.html",
+      "headers": {
+        "Cache-Control": "no-cache, must-revalidate"
+      }
     }
   ]
 }

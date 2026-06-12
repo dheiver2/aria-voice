@@ -78,7 +78,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ============================================
 // DADOS EM MEMÓRIA (serverless-friendly)
@@ -341,9 +341,18 @@ app.post('/api/clear', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// Fallback para SPA
-app.get('*', (req, res) => {
+// Landing comercial na raiz; app de voz em /app
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+});
+
+app.get('/app', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Fallback
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
 });
 
 // ============================================
