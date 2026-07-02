@@ -40,6 +40,14 @@ class ARIA {
         this.bargeInActive = false;
         this.models = [];
 
+        // Limitador de concorrência de TTS (prefetch sem estourar a rede)
+        this.ttsActive = 0;
+        this.ttsWaiters = [];
+        this.TTS_MAX = 2;
+
+        // Histórico local (persistido para sobreviver a reloads)
+        this.conversation = [];
+
         this.recognition = null;
         this.speechTimeout = null;
         this.transcript = '';
@@ -86,6 +94,9 @@ class ARIA {
         
         // Event listeners
         this.setupEventListeners();
+
+        // Restaurar conversa anterior (sobrevive a reloads)
+        this.restoreConversation();
 
         // iOS/Android: unlock audio on first tap/pointer event to avoid autoplay restrictions
         const unlockHandler = async () => {
@@ -358,17 +369,14 @@ class ARIA {
             this.$.orb.classList.add('listening');
             this.transcript = '';
             
-            // Iniciar visualização de áudio em tempo real
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(stream => {
-                        this.micStream = stream;
-                        if (window.startAudioVisualization) {
-                            window.startAudioVisualization(stream);
-                        }
-                    })
-                    .catch(err => console.log('Visualização não disponível:', err));
-            }
+            // Iniciar visualização de áudio em tempo real (com eco cancelado)
+            this.getMicStream()
+                .then(stream => {
+                    if (stream && window.startAudioVisualization) {
+                        window.startAudioVisualization(stream);
+                    }
+                })
+                .catch(err => console.log('Visualização não disponível:', err));
         };
         
         this.recognition.onresult = (event) => {
@@ -393,8 +401,13 @@ class ARIA {
             if (result.isFinal) {
                 this.processTranscript();
             } else {
-                // Processar após silêncio (reduzido para resposta mais rápida)
-                const timeout = this.isMobile ? 800 : 500;
+                // Endpointing adaptativo: espera mais quando a fala parece incompleta
+                // (termina em conjunção/hesitação) e responde mais rápido quando soa pronta.
+                const base = this.isMobile ? 700 : 450;
+                const t = this.transcript.trim();
+                const pending = /\b(e|ou|mas|porque|que|então|tipo|aí|né|com|de|da|do|pra|para|um|uma|the)$/i.test(t);
+                const complete = /[.!?]$/.test(t) || t.split(/\s+/).length >= 6;
+                const timeout = pending ? base + 500 : (complete ? Math.max(300, base - 150) : base);
                 this.speechTimeout = setTimeout(() => {
                     if (this.transcript && this.state.listening) {
                         this.processTranscript();
@@ -407,26 +420,13 @@ class ARIA {
             this.state.listening = false;
             this.$.orb.classList.remove('listening');
 
-            // Manter a escuta de interrupção viva enquanto a ARIA fala
-            if (this.bargeInActive && this.state.speaking) {
-                setTimeout(() => {
-                    if (this.bargeInActive && this.state.speaking) {
-                        try { this.recognition.start(); } catch (e) {}
-                    }
-                }, 150);
-                return;
-            }
-
             // Parar visualização de áudio
             if (window.stopAudioVisualization) {
                 window.stopAudioVisualization();
             }
-            
-            // Parar stream do microfone
-            if (this.micStream) {
-                this.micStream.getTracks().forEach(track => track.stop());
-                this.micStream = null;
-            }
+
+            // Microfone permanece ativo (full-duplex) para continuidade e barge-in.
+            // Só é liberado em releaseMic() (limpar conversa / inatividade).
         };
         
         this.recognition.onerror = (event) => {
@@ -496,6 +496,9 @@ class ARIA {
         if (!el) {
             el = document.createElement('div');
             el.id = 'liveTranscript';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            el.setAttribute('aria-atomic', 'true');
             el.style.cssText = `
                 position: fixed;
                 bottom: 120px;
@@ -534,6 +537,9 @@ class ARIA {
         if (!el) {
             el = document.createElement('div');
             el.id = 'ariaResponse';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            el.setAttribute('aria-atomic', 'true');
             el.style.cssText = `
                 position: fixed;
                 top: 100px;
@@ -636,14 +642,12 @@ class ARIA {
         }
         
         try {
-            // Ensure mic stream is obtained early (useful for iOS / permission prompt)
-            if (!this.micStream && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                try {
-                    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    if (window.startAudioVisualization) window.startAudioVisualization(this.micStream);
-                } catch (e) {
-                    // Don't block recognition start if the mic stream fails here
-                }
+            // Garante o stream do microfone cedo (eco cancelado; útil no iOS/permissão)
+            try {
+                const stream = await this.getMicStream();
+                if (stream && window.startAudioVisualization) window.startAudioVisualization(stream);
+            } catch (e) {
+                // Não bloquear o reconhecimento se a captura falhar aqui
             }
             this.recognition.start();
             console.log('🎙️ Reconhecimento iniciado');
@@ -661,22 +665,112 @@ class ARIA {
     // BARGE-IN: interromper a ARIA falando por cima
     // ============================================
 
-    startBargeIn() {
-        if (!this.settings.bargeIn || !this.recognition) return;
-        // No iOS, microfone + reprodução simultâneos derrubam o áudio; usuário interrompe pelo toque
-        if (this.isIOS) return;
-        if (this.state.listening || this.bargeInActive) return;
-        this.bargeInActive = true;
-        try {
-            this.recognition.start();
-            console.log('👂 Escuta de interrupção ativa');
-        } catch (e) {
-            this.bargeInActive = false;
+    // Microfone persistente com cancelamento de eco/ruído (chave para barge-in)
+    async getMicStream() {
+        if (this.micStream && this.micStream.active) return this.micStream;
+        if (!navigator.mediaDevices?.getUserMedia) return null;
+        this.micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+            }
+        });
+        return this.micStream;
+    }
+
+    releaseMic() {
+        this.stopBargeInVAD();
+        if (window.stopAudioVisualization) window.stopAudioVisualization();
+        if (this.micStream) {
+            this.micStream.getTracks().forEach(t => t.stop());
+            this.micStream = null;
         }
+    }
+
+    // ============================================
+    // BARGE-IN AVANÇADO: VAD por energia (Web Audio)
+    // Detecta voz real do usuário durante a fala da ARIA. Como o stream usa
+    // echoCancellation, o áudio da própria ARIA é removido antes da análise.
+    // ============================================
+    async startBargeIn() {
+        if (!this.settings.bargeIn) return;
+        if (this.isIOS) return; // iOS não sustenta mic + reprodução juntos
+        if (this.vadRunning) return;
+
+        try {
+            const stream = await this.getMicStream();
+            if (!stream) return;
+            if (!this.audioContext) this.initAudioContext();
+            if (this.audioContext.state === 'suspended') await this.audioContext.resume();
+
+            const source = this.audioContext.createMediaStreamSource(stream);
+            const analyser = this.audioContext.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.5;
+            source.connect(analyser);
+            this.vadSource = source;
+
+            const data = new Uint8Array(analyser.fftSize);
+            let noiseFloor = 0.02;     // piso de ruído adaptativo
+            let voiceFrames = 0;       // frames consecutivos acima do limiar
+            const NEEDED = 6;          // ~100ms de voz sustentada
+            this.vadRunning = true;
+
+            const tick = () => {
+                if (!this.vadRunning) return;
+                analyser.getByteTimeDomainData(data);
+                let sum = 0;
+                for (let i = 0; i < data.length; i++) {
+                    const v = (data[i] - 128) / 128;
+                    sum += v * v;
+                }
+                const rms = Math.sqrt(sum / data.length);
+
+                // adapta o piso de ruído quando não há voz
+                if (rms < noiseFloor * 1.5) noiseFloor = noiseFloor * 0.95 + rms * 0.05;
+                const threshold = Math.max(0.045, noiseFloor * 4);
+
+                if (this.state.speaking && rms > threshold) {
+                    if (++voiceFrames >= NEEDED) {
+                        voiceFrames = 0;
+                        this.onBargeInDetected();
+                        return;
+                    }
+                } else if (voiceFrames > 0) {
+                    voiceFrames--;
+                }
+                this.vadRAF = requestAnimationFrame(tick);
+            };
+            this.vadRAF = requestAnimationFrame(tick);
+            console.log('👂 VAD de barge-in ativo');
+        } catch (e) {
+            console.log('VAD indisponível:', e.message);
+        }
+    }
+
+    stopBargeInVAD() {
+        this.vadRunning = false;
+        if (this.vadRAF) cancelAnimationFrame(this.vadRAF);
+        this.vadRAF = null;
+        try { if (this.vadSource) this.vadSource.disconnect(); } catch (e) {}
+        this.vadSource = null;
     }
 
     stopBargeIn() {
         this.bargeInActive = false;
+        this.stopBargeInVAD();
+    }
+
+    // Usuário começou a falar por cima da ARIA → corta e captura a fala
+    onBargeInDetected() {
+        if (!this.state.speaking) return;
+        console.log('🖐️ Barge-in (VAD): usuário interrompeu');
+        this.lastTurnInterrupted = true;
+        this.stopAudio();
+        // captura imediata da fala que interrompeu (continuidade natural)
+        setTimeout(() => this.startListening(), 80);
     }
 
     // Ignora o eco da própria ARIA captado pelo microfone
@@ -709,84 +803,263 @@ class ARIA {
     // ============================================
     
     async sendMessage(message) {
+        this.cancelActiveTurn();
         this.state.processing = true;
         this.$.orb.classList.add('thinking');
-        
+
         console.log('📤 Enviando:', message);
-        
+
+        this.recordMessage('user', message);
+        this.lastTurnInterrupted = false;
+
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000); // chat + TTS podem levar vários segundos
-            
-            const res = await apiFetch('/api/chat-text', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    message,
-                    sessionId: this.state.sessionId,
-                    model: this.settings.model
-                }),
-                signal: controller.signal
-            });
+            await this.streamConversation(message);
 
-            clearTimeout(timeoutId);
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                console.error('❌ API Error:', res.status, errorText);
-                throw new Error(`API Error: ${res.status}`);
-            }
-
-            const data = await res.json();
-            console.log('📥 Resposta:', data.response?.substring(0, 50), `[${data.time}ms]`);
-
-            // Salvar resposta para fallback
-            this.lastResponse = data.response;
-
-            // Adicionar ao histórico de conversas (UX)
-            if (window.addChatMessage) {
-                window.addChatMessage(message, 'user');
-                window.addChatMessage(data.response, 'assistant');
-            }
-
-            // Mostrar resposta brevemente
-            this.showResponse(data.response);
-
-            this.$.orb.classList.remove('thinking');
-
-            // Pipeline: sintetiza por sentença em paralelo e toca em ordem
-            await this.speakPipelined(data.response);
-            
-            // Reiniciar escuta automaticamente se autoListen ativo
-            if (this.settings.autoListen && !this.state.speaking) {
+            // Reiniciar escuta automaticamente (a interrupção já reabre a escuta sozinha)
+            if (this.settings.autoListen && !this.lastTurnInterrupted &&
+                !this.state.speaking && !this.state.processing) {
+                this.showReadyIndicator();
                 setTimeout(() => {
-                    if (!this.state.speaking && !this.state.processing) {
-                        this.showReadyIndicator();
-                        // Iniciar escuta automaticamente após delay
-                        setTimeout(() => this.startListening(), 500);
-                    }
+                    if (!this.state.speaking && !this.state.processing) this.startListening();
                 }, 300);
             }
-            
         } catch (error) {
             console.error('❌ Erro:', error.message);
-            this.$.orb.classList.remove('thinking');
+            this.$.orb.classList.remove('thinking', 'speaking');
             this.state.processing = false;
-            
-            // Feedback visível para o usuário
+            this.state.speaking = false;
+
             const friendly = error.name === 'AbortError'
                 ? 'A resposta demorou demais. Tente novamente.'
                 : 'Não consegui responder agora. Verifique sua conexão e tente novamente.';
             this.showNotification(friendly, 'error');
 
-            // Tentar falar erro no mobile
             if (this.isMobile && error.name === 'AbortError') {
                 this.speakWithBrowser('Desculpe, a conexão demorou muito. Tente novamente.');
             }
         }
+    }
+
+    // Semáforo: no máximo TTS_MAX sínteses simultâneas (ordem de reprodução preservada na fila)
+    async ttsGated(fn) {
+        while (this.ttsActive >= this.TTS_MAX) {
+            await new Promise(r => this.ttsWaiters.push(r));
+        }
+        this.ttsActive++;
+        try { return await fn(); }
+        finally {
+            this.ttsActive--;
+            const next = this.ttsWaiters.shift();
+            if (next) next();
+        }
+    }
+
+    // Cancela qualquer turno em andamento (stream + áudio) antes de iniciar outro
+    cancelActiveTurn() {
+        if (this.streamController) {
+            try { this.streamController.abort(); } catch (e) {}
+            this.streamController = null;
+        }
+        this.stopAudio();
+    }
+
+    // --- Persistência local da conversa ---
+    recordMessage(role, text) {
+        if (!text) return;
+        this.conversation.push({ role, text });
+        try {
+            localStorage.setItem('aria-conversation', JSON.stringify({
+                sessionId: this.state.sessionId,
+                messages: this.conversation.slice(-40)
+            }));
+        } catch (e) {}
+        if (window.addChatMessage) window.addChatMessage(text, role === 'user' ? 'user' : 'assistant');
+    }
+
+    restoreConversation() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('aria-conversation'));
+            if (saved && Array.isArray(saved.messages) && saved.messages.length) {
+                if (saved.sessionId) this.state.sessionId = saved.sessionId;
+                this.conversation = saved.messages;
+                if (window.addChatMessage) {
+                    saved.messages.forEach(m =>
+                        window.addChatMessage(m.text, m.role === 'user' ? 'user' : 'assistant'));
+                }
+                console.log('🗂️ Conversa restaurada:', saved.messages.length, 'mensagens');
+            }
+        } catch (e) {}
+    }
+
+    // Busca o TTS de uma frase; resolve com {audioBase64,...} ou null (fallback navegador)
+    fetchTTS(text, signal) {
+        return apiFetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+            signal
+        })
+            .then(r => (r.ok ? r.json() : null))
+            .then(d => (d?.audioBase64 ? d : null))
+            .catch(() => null);
+    }
+
+    // ============================================
+    // CONVERSA EM STREAMING: o LLM envia frase a frase (SSE);
+    // cada frase é sintetizada e tocada em ordem, sem esperar a resposta inteira.
+    // ============================================
+    async streamConversation(message) {
+        const controller = new AbortController();
+        this.streamController = controller;
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+        const res = await apiFetch('/api/chat-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+            body: JSON.stringify({
+                message,
+                sessionId: this.state.sessionId,
+                model: this.settings.model
+            }),
+            signal: controller.signal
+        });
+
+        if (!res.ok || !res.body) {
+            clearTimeout(timeoutId);
+            throw new Error(`API Error: ${res.status}`);
+        }
+
+        // Pipeline de TTS: produtor (SSE) enche a fila; consumidor toca em ordem
+        this.ttsAbort = new AbortController();
+        const ttsSignal = this.ttsAbort.signal;
+        const useBrowserTTS = this.isIOS && !this.audioUnlocked;
+
+        const queue = [];
+        let streamDone = false;
+        let notify = null;
+        const waitNext = () => new Promise(r => (notify = r));
+        const wake = () => { if (notify) { const n = notify; notify = null; n(); } };
+
+        let fullResponse = '';
+        let spokenText = '';
+        let firstChunk = false;
+        this.lastTurnInterrupted = false;
+
+        const consumer = (async () => {
+            let i = 0;
+            let browserVoice = null;
+            while (!ttsSignal.aborted) {
+                if (i >= queue.length) {
+                    if (streamDone) break;
+                    await waitNext();
+                    continue;
+                }
+                const item = queue[i++];
+                const d = await item.tts;
+                if (ttsSignal.aborted) break;
+
+                if (!firstChunk) {
+                    firstChunk = true;
+                    this.state.processing = false;
+                    this.state.speaking = true;
+                    this.$.orb.classList.remove('thinking');
+                    this.$.orb.classList.add('speaking');
+                    this.startBargeIn();
+                }
+
+                if (d) {
+                    await this.playChunkAudio(d.audioBase64, d.audioMime || 'audio/mpeg');
+                } else if ('speechSynthesis' in window) {
+                    if (!browserVoice) browserVoice = this.getBestFemaleVoice();
+                    await this.speakChunk(item.text, browserVoice);
+                }
+                if (ttsSignal.aborted) break; // interrompida no meio: não conta como falada
+                spokenText += (spokenText ? ' ' : '') + item.text;
+            }
+        })();
+
+        let displayAcc = '';
+        let pendingShort = '';
+
+        const enqueue = (text) => {
+            if (!text) return;
+            displayAcc += (displayAcc ? ' ' : '') + text;
+            this.showResponse(displayAcc);
+            const tts = useBrowserTTS
+                ? Promise.resolve(null)
+                : this.ttsGated(() => this.fetchTTS(text, ttsSignal));
+            queue.push({ text, tts });
+            wake();
+        };
+
+        try {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const parts = buf.split('\n\n');
+                buf = parts.pop();
+                for (const part of parts) {
+                    const line = part.trim();
+                    if (!line.startsWith('data:')) continue;
+                    let evt;
+                    try { evt = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+
+                    if (evt.type === 'sentence') {
+                        // Junta fragmentos curtos para um áudio menos picotado
+                        let text = pendingShort ? `${pendingShort} ${evt.text}` : evt.text;
+                        pendingShort = '';
+                        if (text.length < 12) { pendingShort = text; continue; }
+                        enqueue(text);
+                    } else if (evt.type === 'done') {
+                        fullResponse = evt.full || displayAcc;
+                    } else if (evt.type === 'error') {
+                        throw new Error(evt.error);
+                    }
+                }
+            }
+            if (pendingShort) enqueue(pendingShort); // descarrega resto curto
+            if (!fullResponse) fullResponse = displayAcc;
+        } finally {
+            clearTimeout(timeoutId);
+            streamDone = true;
+            wake();
+        }
+
+        await consumer;
+        const wasInterrupted = ttsSignal.aborted;
+
+        this.lastResponse = fullResponse;
+
+        if (wasInterrupted && firstChunk) {
+            // Continuidade: servidor passa a conhecer só o que o usuário ouviu
+            this.amendHistory(spokenText);
+            if (spokenText) this.recordMessage('assistant', spokenText + ' …');
+        } else if (fullResponse) {
+            this.recordMessage('assistant', fullResponse);
+        }
+
+        this.ttsAbort = null;
+        this.streamController = null;
+        this.state.processing = false;
+        this.$.orb.classList.remove('thinking');
+        if (!wasInterrupted) {
+            this.state.speaking = false;
+            this.$.orb.classList.remove('speaking');
+        }
+        this.stopBargeIn();
+    }
+
+    // Informa ao servidor o que foi realmente falado antes da interrupção
+    amendHistory(spokenText) {
+        apiFetch('/api/amend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: this.state.sessionId, spokenText: spokenText || '' })
+        }).catch(() => {});
     }
     
     // ============================================
@@ -1101,6 +1374,7 @@ class ARIA {
         this.state.speaking = false;
         this.$.orb.classList.remove('speaking');
         this.bargeInActive = false;
+        this.stopBargeInVAD();
     }
 
     // ============================================
@@ -1118,9 +1392,10 @@ class ARIA {
             }
             
             if (this.state.speaking) {
+                this.lastTurnInterrupted = true;
                 this.stopAudio();
                 // Após interromper, já começa a escutar
-                setTimeout(() => this.startListening(), 250);
+                setTimeout(() => this.startListening(), 200);
             } else if (this.state.listening) {
                 this.stopListening();
             } else if (!this.state.processing) {
@@ -1197,6 +1472,10 @@ class ARIA {
                 });
             } catch (e) {}
             this.state.sessionId = `session_${Date.now()}`;
+            this.lastResponse = '';
+            this.conversation = [];
+            try { localStorage.removeItem('aria-conversation'); } catch (e) {}
+            this.releaseMic();
             if (window.clearChatMessages) window.clearChatMessages();
             this.$.settingsPanel.classList.remove('open');
             this.showNotification('Conversa apagada', 'info');
@@ -1204,15 +1483,29 @@ class ARIA {
         
         // Teclado
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && !e.target.matches('input, textarea, select')) {
+            if (e.target.matches('input, textarea, select')) return;
+            if (e.code === 'Space') {
                 e.preventDefault();
                 if (this.state.speaking) {
+                    this.lastTurnInterrupted = true;
                     this.stopAudio();
                 } else if (!this.state.listening && !this.state.processing) {
                     this.startListening();
                 }
+            } else if (e.code === 'Escape') {
+                // Esc para tudo: cancela fala e escuta
+                e.preventDefault();
+                this.lastTurnInterrupted = true;
+                this.cancelActiveTurn();
+                this.stopListening();
             }
         });
+
+        // Conectividade
+        window.addEventListener('offline', () =>
+            this.showNotification('Sem conexão. Aguardando rede…', 'error'));
+        window.addEventListener('online', () =>
+            this.showNotification('Conexão restabelecida', 'success'));
     }
 }
 

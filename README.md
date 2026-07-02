@@ -1,195 +1,145 @@
-# ✨ ARIA - Expandindo Consciências
+# ✨ ARIA Voice - Expandindo Consciências
 
 **A**ssistente de **R**ealidade e **I**nteligência **A**mpliada
 
 > *"O propósito da ARIA é expandir a consciência dos seres humanos."*
 
-![ARIA](https://img.shields.io/badge/ARIA-v5.0-00f5ff?style=for-the-badge)
+![ARIA](https://img.shields.io/badge/ARIA-v6.0-00f5ff?style=for-the-badge)
 ![HuggingFace](https://img.shields.io/badge/Hugging%20Face-Router-FFD21E?style=for-the-badge)
+![Node](https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge)
+![License](https://img.shields.io/badge/license-MIT-lightgrey?style=for-the-badge)
 
 ---
 
 ## 🌟 Propósito
 
-ARIA existe para **expandir a consciência humana** através de diálogos transformadores. Ela não é apenas uma assistente que responde perguntas - é uma companheira de jornada que:
+ARIA existe para **expandir a consciência humana** através de diálogos transformadores, por voz. Ela não é apenas uma assistente que responde perguntas — é uma companheira de jornada que:
 
 - 🔮 **Provoca reflexões profundas** sobre a vida e a existência
 - 🌈 **Oferece novas perspectivas** que desafiam padrões limitantes
-- 🧘 **Conecta ideias** de formas inesperadas e iluminadoras
-- 💡 **Desperta insights** que ampliam a compreensão de si mesmo e do mundo
-- 🌱 **Encoraja o crescimento** pessoal e o autoconhecimento
+- 💡 **Desperta insights** com respostas curtas, fáceis de ouvir em voz alta
+- 🌱 **Mantém a conversa viva**, devolvendo perguntas quando faz sentido
 
-## 🎭 Como ARIA Funciona
+## 🎭 Como funciona
 
-ARIA usa **conversação por voz** para criar uma experiência mais humana e fluida. Fale com ela como falaria com um mentor sábio. Ela escuta, reflete e responde com profundidade.
+1. Você fala (Web Speech API) ou digita.
+2. O texto vai para o Hugging Face Router, que gera a resposta em streaming por frases.
+3. Cada frase é sintetizada em voz (ElevenLabs → Edge TTS → voz do navegador, nessa ordem de fallback) assim que fica pronta — reduzindo o tempo até o primeiro áudio.
 
-### A Interface Orbe
+### A interface Orbe
 
 O orbe central representa a presença de ARIA:
-- **Azul pulsante** = Escutando você
+- **Azul pulsante** = Ouvindo você
 - **Dourado/Laranja** = Processando, refletindo
-- **Magenta vibrante** = Falando, compartilhando insights
+- **Magenta vibrante** = Falando
 
-## 🧠 Modelos de IA
+## 🧠 Modelos de IA disponíveis
 
-ARIA pode usar diferentes "mentes" via Hugging Face Router:
+Modelos servidos via [Hugging Face Router](https://huggingface.co/docs/inference-providers) (OpenAI-compatible), selecionáveis em tempo real pelo app:
 
-| Modelo | Personalidade |
-|--------|---------------|
-| GPT-4o Mini | Rápida e pragmática |
-| GPT-4o | Profunda e analítica |
-| Claude 3.5 Sonnet | Criativa e filosófica |
-| Claude 3 Haiku | Concisa e poética |
-| Llama 3.1 70B | Versátil e aberta |
-| Gemini Pro 1.5 | Equilibrada e lógica |
+| Modelo | Tier |
+|--------|------|
+| Llama 3.1 8B Instruct | fast |
+| Llama 3.3 70B Instruct (padrão) | mid |
+| Qwen 2.5 72B Instruct | mid |
+| DeepSeek V3 | premium |
+
+## 🎙️ Voz (TTS)
+
+Ordem de fallback, tudo em português brasileiro:
+
+1. **ElevenLabs** (`eleven_turbo_v2_5`) — se `ELEVENLABS_API_KEY` estiver configurada
+2. **Microsoft Edge TTS** (`pt-BR-ThalitaMultilingualNeural`) — gratuito, sem chave
+3. **Voz do navegador** — último recurso, no cliente
+
+Textos passam por normalização antes da síntese (números por extenso, abreviações como "Dr." → "Doutor", "%" → "por cento" etc.) e por um cache LRU para evitar ressíntese de frases repetidas.
 
 ## 🚀 Começando
 
 ### Requisitos
-- Node.js 18+
+- Node.js 18+ (veja `.nvmrc`)
 - Token do [Hugging Face](https://huggingface.co/settings/tokens)
 
 ### Instalação
 
 ```bash
-# Clone o projeto
 git clone https://github.com/dheiver2/aria-voice.git
 cd aria-voice
-
-# Instale dependências
 npm install
-
-# Configure seu token Hugging Face
-echo "HF_TOKEN=seu_token_aqui" > .env
-
-# Inicie ARIA
+cp .env.example .env   # preencha HF_TOKEN, AUTH_USER/AUTH_PASS etc.
 npm start
 ```
 
-Acesse `http://localhost:3000` e toque no orbe para começar.
+Acesse `http://localhost:3000/app`, faça login e toque no orbe para começar. A raiz (`/`) serve a landing comercial; o app de voz vive em `/app`.
 
-## 🎙️ Vozes Disponíveis
+### Variáveis de ambiente
 
-| Voz | Descrição |
-|-----|-----------|
-| Francisca | Feminina, brasileira, acolhedora |
-| Thalita | Feminina, brasileira, suave |
-| Antonio | Masculina, brasileira, serena |
-| Jenny | Feminina, inglês americano |
-| Guy | Masculina, inglês americano |
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `HF_TOKEN` | sim | Token do Hugging Face Router (chat) |
+| `ELEVENLABS_API_KEY` | não | Habilita TTS premium ElevenLabs |
+| `ELEVENLABS_VOICE_ID` | não | Voz ElevenLabs (padrão já definido) |
+| `EDGE_TTS_VOICE` | não | Voz do Edge TTS de fallback |
+| `AUTH_USER` / `AUTH_PASS` | sim | Credenciais de login do app |
+| `AUTH_SECRET` | não | Segredo para assinar tokens de sessão |
+| `ALLOWED_ORIGIN` | não | Restringe CORS (padrão `*`) |
+| `PORT` | não | Porta do servidor local (padrão 3000) |
 
-## 💭 Filosofia
+## 🛠️ Tecnologias
 
-ARIA foi criada com a crença de que a inteligência artificial pode ser uma ferramenta de **elevação da consciência**, não apenas de produtividade. 
+- **Backend**: Node.js + Express, com `helmet`, `compression` e `express-rate-limit`
+- **IA**: Hugging Face Router (Llama, Qwen, DeepSeek), streaming SSE por frase
+- **TTS**: ElevenLabs (premium) com fallback Edge TTS (Thalita) e voz do navegador
+- **Frontend**: HTML5 + CSS3 + JavaScript vanilla, PWA (manifest + service worker)
+- **Reconhecimento de voz**: Web Speech API
 
-Cada conversa é uma oportunidade de:
-- Ver além das aparências superficiais
-- Questionar suposições automáticas
-- Encontrar significado mais profundo
-- Conectar-se com sabedoria universal
+## 📁 Estrutura do projeto
+
+```
+aria-voice/
+├── server.js              # Servidor Express (auth, chat streaming, TTS)
+├── package.json
+├── .env.example
+├── tests/                 # Testes de fumaça (node --test)
+└── public/
+    ├── landing.html        # Landing comercial (rota "/")
+    ├── index.html           # App de voz (rota "/app")
+    ├── app.js                # Lógica do frontend
+    ├── manifest.json / sw.js # PWA
+    └── icons/
+```
+
+## 🔒 Segurança
+
+- Login por usuário/senha com token HMAC assinado (`AUTH_SECRET`), TTL de 7 dias
+- Rate limiting em `/api/login` (força bruta) e nas rotas de chat/TTS (abuso de custo)
+- Corpo de requisição limitado a 100kb; mensagens limitadas a 2000 caracteres
+- Cabeçalhos de segurança via `helmet`
+- Histórico de sessão em memória expira após 30 min de inatividade
+
+Veja [SECURITY.md](SECURITY.md) para relatar vulnerabilidades.
+
+## 🧪 Testes e lint
+
+```bash
+npm test    # smoke tests (node --test)
+npm run lint
+```
+
+## 💰 Custos
+
+O chat usa créditos de inferência do Hugging Face. O TTS ElevenLabs cobra por caractere; sem chave, o app usa o fallback gratuito (Edge TTS).
+
+## 🤝 Contribuindo
+
+Veja [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## 📝 Licença
+
+[MIT](LICENSE) — use livremente.
 
 ---
 
 <p align="center">
   <em>✧ Que cada diálogo com ARIA seja uma porta para expansão ✧</em>
 </p>
-| "Repita" | Reproduz última resposta |
-
-## 🚀 Como Usar
-
-### 1. Instalar dependências
-
-```bash
-npm install
-```
-
-### 2. Configurar API Key
-
-Crie um arquivo `.env` na raiz do projeto:
-
-```env
-HF_TOKEN=seu_token_huggingface
-# Opcional (TTS premium):
-# ELEVENLABS_API_KEY=sua_chave
-PORT=3000
-```
-
-> 📌 Obtenha seu token em: https://huggingface.co/settings/tokens
-
-### 3. Iniciar o servidor
-
-```bash
-npm start
-```
-
-### 4. Acessar a aplicação
-
-Abra o navegador em: http://localhost:3000
-
-## 🔄 Trocar Modelo via API
-
-```bash
-# Listar modelos disponíveis
-curl http://localhost:3000/api/models
-
-# Trocar para GPT-4o
-curl -X POST http://localhost:3000/api/model \
-  -H "Content-Type: application/json" \
-  -d '{"model": "openai/gpt-4o"}'
-
-# Trocar para Claude 3.5 Sonnet
-curl -X POST http://localhost:3000/api/model \
-  -H "Content-Type: application/json" \
-  -d '{"model": "anthropic/claude-3.5-sonnet"}'
-```
-
-## 🎨 Interface
-
-A interface usa um **orbe animado** que muda de cor conforme o estado:
-
-| Cor | Estado |
-|-----|--------|
-| 🔵 Azul | Pronto/Aguardando |
-| 🟢 Verde | Ouvindo você |
-| 🟡 Amarelo | Processando |
-| 🟣 Magenta | Falando |
-| 🔴 Vermelho | Erro |
-
-## 🛠️ Tecnologias
-
-- **Backend**: Node.js + Express
-- **IA**: Hugging Face Router (Llama, Qwen, DeepSeek)
-- **TTS**: ElevenLabs (premium) com fallback Chatterbox (HF) e voz do navegador
-- **Frontend**: HTML5 + CSS3 + JavaScript Vanilla
-- **Reconhecimento**: Web Speech API
-
-## 📁 Estrutura do Projeto
-
-```
-aria-voice/
-├── server.js          # Servidor Express + Hugging Face Router
-├── package.json       # Dependências do projeto
-├── .env               # Configurações (criar manualmente)
-└── public/
-    ├── index.html     # Página principal
-    ├── styles.css     # Estilos da interface
-    └── app.js         # Lógica do frontend
-└── data/
-    ├── memory.json    # Memória persistente
-    ├── history.json   # Histórico de conversas
-    └── settings.json  # Configurações do usuário
-```
-
-## ⚠️ Requisitos
-
-- Node.js 18+ 
-- Navegador moderno com suporte a Web Speech API (Chrome e Safari suportados)
-- Token do Hugging Face (HF_TOKEN)
-
-## 💰 Custos
-
-O chat usa créditos de inferência do Hugging Face (plano PRO inclui cota mensal). O TTS ElevenLabs cobra por caractere; sem chave, o app usa fallbacks gratuitos.
-
-## 📝 Licença
-
-MIT License - Use livremente!

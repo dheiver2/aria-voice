@@ -1,11 +1,18 @@
 {
   "name": "aria-voice",
-  "version": "5.0.0",
-  "description": "Assistente de voz com IA usando OpenRouter",
+  "version": "6.0.0",
+  "description": "Assistente de voz com IA em português brasileiro, via Hugging Face Router (chat) e ElevenLabs/Edge TTS (voz)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dheiver2/aria-voice.git"
+  },
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test tests/*.test.js",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.26.0",
@@ -13,12 +20,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "msedge-tts": "^2.0.5"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "eslint": "^9.39.4",
     "sharp": "^0.34.5"
   }
 }
