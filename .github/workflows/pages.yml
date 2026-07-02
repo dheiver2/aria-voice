@@ -36,6 +36,9 @@ jobs:
           cp public/favicon.svg site/favicon.svg
           # A landing é servida estaticamente aqui; o app de voz roda no Vercel (precisa de backend)
           sed -i 's#href="/app"#href="https://aria-voice.vercel.app/app"#g' site/index.html
+          # GitHub Pages de projeto fica em /aria-voice/, não na raiz: caminhos
+          # absolutos ("/logo.svg") quebram e apontam para dheiver2.github.io/logo.svg (404)
+          sed -i -E 's#(href|src)="/(logo|favicon)\.svg"#\1="\2.svg"#g' site/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
