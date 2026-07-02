@@ -1,0 +1,45 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'public/landing.html'
+      - 'public/logo.svg'
+      - 'public/favicon.svg'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar site estático (landing page)
+        run: |
+          mkdir -p site
+          cp public/landing.html site/index.html
+          cp public/logo.svg site/logo.svg
+          cp public/favicon.svg site/favicon.svg
+          # A landing é servida estaticamente aqui; o app de voz roda no Vercel (precisa de backend)
+          sed -i 's#href="/app"#href="https://aria-voice.vercel.app/app"#g' site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
