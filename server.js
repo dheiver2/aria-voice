@@ -262,47 +262,75 @@ function ttsCacheSet(key, val) {
 }
 
 // ============================================
-// OPENROUTER API
+// MANGABA GATEWAY (principal) + HUGGING FACE (fallback)
 // ============================================
+const GATEWAY_URL = (process.env.MANGABA_GATEWAY_URL || 'https://mangaba.ngrok.app').replace(/\/$/, '');
+
+// Chama o Mangaba Gateway (self-hosted, histórico mantido do lado dele via
+// session_id). Retorna a resposta ou null (indisponível) — nesse caso o
+// chamador cai para o Hugging Face.
+async function chatWithGateway(message, sessionId) {
+    try {
+        const form = new FormData();
+        form.append('session_id', sessionId);
+        form.append('message', message);
+        const response = await fetch(`${GATEWAY_URL}/chat`, {
+            method: 'POST',
+            headers: { 'ngrok-skip-browser-warning': '1' },
+            body: form,
+            signal: AbortSignal.timeout(60_000)
+        });
+        if (!response.ok) return null;
+        const data = await response.json().catch(() => null);
+        return (data && typeof data.response === 'string' && data.response) ? data.response : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 async function chat(message, sessionId, model) {
     let history = getHistory(sessionId);
 
-    const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
-        ...history.slice(-6), // Reduzido para 6 mensagens para resposta mais rápida
-        { role: 'user', content: message }
-    ];
+    let reply = await chatWithGateway(message, sessionId);
 
-    // Garante um modelo válido do catálogo
-    const chosenModel = (model && MODELS[model]) ? model : defaultSettings.model;
+    if (reply == null) {
+        const messages = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...history.slice(-6), // Reduzido para 6 mensagens para resposta mais rápida
+            { role: 'user', content: message }
+        ];
 
-    const response = await fetch(HF_CHAT_URL, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${HF_TOKEN}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: chosenModel,
-            messages,
-            temperature: 0.8,
-            max_tokens: 300,
-            top_p: 0.9
-        })
-    });
+        // Garante um modelo válido do catálogo
+        const chosenModel = (model && MODELS[model]) ? model : defaultSettings.model;
 
-    if (!response.ok) {
-        let message = `Erro na API (${response.status})`;
-        try {
-            const error = await response.json();
-            message = error.error?.message || message;
-        } catch (e) {}
-        throw new Error(message);
+        const response = await fetch(HF_CHAT_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${HF_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: chosenModel,
+                messages,
+                temperature: 0.8,
+                max_tokens: 300,
+                top_p: 0.9
+            })
+        });
+
+        if (!response.ok) {
+            let message = `Erro na API (${response.status})`;
+            try {
+                const error = await response.json();
+                message = error.error?.message || message;
+            } catch (e) {}
+            throw new Error(message);
+        }
+
+        const data = await response.json();
+        reply = data.choices[0].message.content.trim();
     }
 
-    const data = await response.json();
-    let reply = data.choices[0].message.content.trim();
-    
     // Limpar markdown
     reply = cleanMarkdown(reply);
 
@@ -333,6 +361,26 @@ function extractSentences(buffer) {
 // Retorna a resposta completa (já limpa) para salvar no histórico.
 async function chatStream(message, sessionId, model, onSentence) {
     let history = getHistory(sessionId);
+
+    // Gateway é não-streaming: quando responde, entrega tudo de uma vez via
+    // extractSentences (mesma segmentação usada no streaming HF) e retorna.
+    const gwReply = await chatWithGateway(message, sessionId);
+    if (gwReply != null) {
+        const { sentences, rest } = extractSentences(gwReply);
+        for (const s of sentences) {
+            const clean = cleanMarkdown(s);
+            if (clean) onSentence(clean);
+        }
+        const tail = cleanMarkdown(rest);
+        if (tail) onSentence(tail);
+
+        const reply = cleanMarkdown(gwReply);
+        history.push({ role: 'user', content: message });
+        history.push({ role: 'assistant', content: reply });
+        if (history.length > 16) history = history.slice(-16);
+        setHistory(sessionId, history);
+        return reply;
+    }
 
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
